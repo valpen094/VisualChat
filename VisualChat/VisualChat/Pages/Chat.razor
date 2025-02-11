@@ -1,0 +1,186 @@
+﻿@page "/chat"
+@using System.Net.WebSockets
+@using System.Text
+
+<style>
+    .chat-container {
+        max-width: 600px;
+        margin: 0 auto;
+        padding: 0;
+        border: 1px solid #ccc;
+        border-radius: 10px;
+    }
+
+    .chat-area {
+        min-height: 150px;
+        padding: 20px;
+        border-top-left-radius: 10px;
+        border-top-right-radius: 10px;
+        background-color: #f8f9fa;
+    }
+
+    .chat-bubble {
+        margin-bottom: 10px;
+        width: 80%;
+    }
+
+    .chat-bubble.sent {
+        text-align: right;
+        margin-left: auto;
+    }
+
+    .chat-bubble.received {
+        text-align: left;
+        margin-right: auto;
+    }
+
+    .chat-bubble > span {
+        display: inline-block;
+        padding: 10px;
+        border-radius: 10px;
+    }
+
+    .chat-bubble.sent > span {
+        text-align: left;
+        background-color: #dcf8c6;
+    }
+
+    .chat-bubble.received > span {
+        background-color: #fff;
+    }
+
+    .form-area {
+        border-top: 1px solid #ccc;
+    }
+
+    .form-area input {
+        border: none;
+        border-radius: 0;
+        border-bottom-left-radius: 10px;
+    }
+
+    .form-area button {
+        border-radius: 0;
+        border-bottom-right-radius: 10px;
+    }
+</style>
+
+<div class="container">
+    <div class="chat-container">
+        <div class="chat-area">
+            @foreach (var msg in Messages)
+            {
+                <div class="chat-bubble @(msg.IsSent ? "sent" : "received")">
+                    <span>@msg.Text</span>
+                </div>
+            }
+        </div>
+        <div class="input-group form-area">
+            <input @bind="MessageText" @bind:event="oninput" type="text" class="form-control" placeholder="Enter your message here." />
+            <div class="input-group-append">
+                <button @onclick="SendMessage" class="btn btn-primary">
+                    @((string.IsNullOrWhiteSpace(MessageText)) ? "Mic" : "Send")
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private readonly Uri ServerUri = new Uri("ws://localhost:5293/ws");
+
+    private string MessageText = string.Empty;
+    private List<Message> Messages = new();
+    private ClientWebSocket? WebSocket;
+
+    private bool IsReconnecting = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await ConnectWebSocket();
+    }
+
+    private async Task ConnectWebSocket()
+    {
+        WebSocket = new ClientWebSocket();
+        Uri serverUri = new Uri("ws://localhost:5293/ws");
+
+        while (WebSocket.State != WebSocketState.Open)
+        {
+            try
+            {
+                await WebSocket.ConnectAsync(ServerUri, CancellationToken.None);
+                Messages.Add(new Message { Text = "✅ Connected to WebSocket Server!", IsSent = true });
+
+                // Start receiving messages
+                _ = ReceiveMessage();
+
+                // Reset reconnection flag
+                IsReconnecting = false;
+            }
+            catch (Exception)
+            {
+                if (!IsReconnecting)
+                {
+                    Messages.Add(new Message { Text = "❌ Connection lost. Retrying...", IsSent = true });
+                    IsReconnecting = true;
+                }
+
+                await Task.Delay(5000);
+            }
+        }
+    }
+
+    private async Task SendMessage()
+    {
+        if (WebSocket?.State == WebSocketState.Open && !string.IsNullOrWhiteSpace(MessageText))
+        {
+            var bytes = Encoding.UTF8.GetBytes(MessageText);
+            await WebSocket.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Text, true, CancellationToken.None);
+
+            Messages.Add(new Message { Text = MessageText, IsSent = true });
+            MessageText = "";
+        }
+        else
+        {
+            Messages.Add(new Message { Text = "⚠️ Cannot send message. WebSocket is disconnected.", IsSent = true });
+        }
+    }
+
+    private async Task ReceiveMessage()
+    {
+        var buffer = new byte[1024];
+
+        try
+        {
+            while (WebSocket?.State == WebSocketState.Open)
+            {
+                var result = await WebSocket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
+
+                if (result.MessageType == WebSocketMessageType.Close)
+                {
+                    Messages.Add(new Message { Text = "⚠️ Server closed connection.", IsSent = true });
+                    await WebSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Closing", CancellationToken.None);
+                    await ConnectWebSocket();
+                    return;
+                }
+
+                var message = Encoding.UTF8.GetString(buffer, 0, result.Count);
+                Messages.Add(new Message { Text = message, IsSent = false });
+
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch (Exception)
+        {
+            Messages.Add(new Message { Text = "❌ Connection lost. Reconnecting...", IsSent = true });
+            await ConnectWebSocket();
+        }
+    }
+
+    private class Message
+    {
+        public string Text { get; set; } = string.Empty;
+        public bool IsSent { get; set; }
+    }
+} 
