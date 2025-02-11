@@ -115,7 +115,7 @@ namespace ChatServer.Controllers
                             }
                             break;
                         case RAGService.ChromaProcessName:
-                            url = $"http://{_ragService.ChromaUri.Item1}/api/v1/:{_ragService.ChromaUri.Item2}";
+                            url = $"http://{_ragService.ChromaUri.Item1}:{_ragService.ChromaUri.Item2}/api/v1/";
                             var options = new ChromaConfigurationOptions(url);
                             Debug.WriteLine($"{DateTime.Now} Connecting to {url}...");
                             _ragService.ChromaHttpClient = new HttpClient { BaseAddress = new Uri(url) };
