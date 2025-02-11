@@ -5,6 +5,10 @@ using System.Text.Json;
 
 namespace ChatServer.Controllers
 {
+    /// <summary>
+    /// Whisper controller.
+    /// </summary>
+    /// <param name="ragService"></param>
     [ApiController]
     [Route("api/[controller]")]
     public class WhisperController(RAGService ragService) : ControllerBase

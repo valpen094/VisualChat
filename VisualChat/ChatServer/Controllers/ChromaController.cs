@@ -1,76 +1,76 @@
 ﻿using ChromaDB.Client;
 using Microsoft.AspNetCore.Mvc;
 using System.Diagnostics;
+using System.Reflection;
 
 namespace ChatServer.Controllers
 {
+    /// <summary>
+    /// Chroma controller.
+    /// </summary>
+    /// <param name="ragService"></param>
     [ApiController]
     [Route("api/[controller]")]
     public class ChromaController(RAGService ragService) : ControllerBase
     {
         private readonly RAGService _ragService = ragService;
-
+　
         /// <summary>
         /// Query the ChromaDB.
         /// </summary>
-        /// <param name="userId"></param>
+        /// <param name="request"></param>
         /// <returns></returns>
-        [HttpGet("query/{userId}")]
-        public IActionResult QueryAsync(string userId)
-        {            
-            _ = Task.Run(async () =>
+        [HttpPost("query")]
+        public async Task<IActionResult> QueryAsync([FromBody] DataRequest request)
+        {
+            if(request == null)
             {
-                string message = string.Empty;
+                return BadRequest("Invalid request.");
+            }
 
-                try
-                {
-                    Debug.WriteLine($"{DateTime.Now} Start query.");
+            string message = string.Empty;
+            string className = this.GetType().Name;
+            string methodName = MethodBase.GetCurrentMethod().Name;
 
-                    // Create where condition
-                    ChromaWhereOperator whereCondition = null;
+            Debug.WriteLine($"{DateTime.Now} {className}.{methodName}");
 
-                    // Create whereDocument condition
-                    ChromaWhereDocumentOperator whereDocumentCondition = ChromaWhereDocumentOperator.Contains("example");
+            try
+            {
+                Debug.WriteLine($"{DateTime.Now} Start query.");
 
-                    // Query the database
-                    var queryData = await _ragService.ChromaCollectionClient.Query(
-                        queryEmbeddings: [new(_ragService.QueryEmbedding)],
-                        nResults: 10,
-                        whereCondition
+                // Create where condition
+                ChromaWhereOperator whereCondition = null;
+
+                // Create whereDocument condition
+                ChromaWhereDocumentOperator whereDocumentCondition = ChromaWhereDocumentOperator.Contains("example");
+
+                // Query the database
+                var queryData = await _ragService.ChromaCollectionClient.Query(
+                    queryEmbeddings: [new(_ragService.QueryEmbedding)],
+                    nResults: 10,
+                    whereCondition
                     // where: new ("key", "$in", "values")
-                    );
+                );
 
-                    Debug.WriteLine($"{DateTime.Now} End query.");
+                Debug.WriteLine($"{DateTime.Now} End query.");
 
-                    foreach (var item in queryData)
-                    {
-                        foreach (var entry in item)
-                        {
-                            message += $"{entry.Document}\r\n";
-                        }
-                    }
-                }
-                catch (Exception e)
+                foreach (var item in queryData)
                 {
-                    message = $"Error: {e.Message}";
-                }
-                finally
-                {
-                    try
+                    foreach (var entry in item)
                     {
-                        // await _ragService.Clients.All.SendAsync("ReceiveResult", new { name = "chroma/query", errorcode = 200, status = "Completed", content = message });
-                        Debug.WriteLine($"{DateTime.Now} Sending completion message.");
-                    }
-                    catch (Exception ex)
-                    {
-                        // If an error occurs when sending to the Hub.
-                        Debug.WriteLine($"{DateTime.Now} Error sending to client: {ex.Message}");
+                        message += $"{entry.Document}\r\n";
                     }
                 }
+            }
+            catch (Exception ex)
+            {
+                message = ex.Message;
+                Debug.WriteLine($"{DateTime.Now} Error: {message}");
+                return BadRequest(new { Result = "Error", Content = message });
+            }
 
-            }).ConfigureAwait(false);
-            
-            return Ok(new { result = "Accept", content = string.Empty });
+            Debug.WriteLine($"{DateTime.Now} Sending completion message.");
+            return Ok(new { result = "Success", content = message });
         }
     }
 }

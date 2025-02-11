@@ -71,7 +71,7 @@
             @foreach (var msg in Messages)
             {
                 <div class="chat-bubble @(msg.IsSent ? "sent" : "received")">
-                    <span>@msg.Text</span>
+                    <span>@msg.Data</span>
                 </div>
             }
         </div>
@@ -90,7 +90,7 @@
     private readonly Uri ServerUri = new Uri("ws://localhost:5293/ws");
 
     private string MessageText = string.Empty;
-    private List<Message> Messages = new();
+    private List<WebSocketData> Messages = new();
     private ClientWebSocket? WebSocket;
 
     private bool IsReconnecting = false;
@@ -110,7 +110,7 @@
             try
             {
                 await WebSocket.ConnectAsync(ServerUri, CancellationToken.None);
-                Messages.Add(new Message { Text = "✅ Connected to WebSocket Server!", IsSent = true });
+                Messages.Add(new WebSocketData { Data = "✅ Connected to WebSocket Server!", IsSent = true });
 
                 // Start receiving messages
                 _ = ReceiveMessage();
@@ -122,7 +122,7 @@
             {
                 if (!IsReconnecting)
                 {
-                    Messages.Add(new Message { Text = "❌ Connection lost. Retrying...", IsSent = true });
+                    Messages.Add(new WebSocketData { Data = "❌ Connection lost. Retrying...", IsSent = true });
                     IsReconnecting = true;
                 }
 
@@ -138,12 +138,12 @@
             var bytes = Encoding.UTF8.GetBytes(MessageText);
             await WebSocket.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Text, true, CancellationToken.None);
 
-            Messages.Add(new Message { Text = MessageText, IsSent = true });
+            Messages.Add(new WebSocketData { Data = MessageText, IsSent = true });
             MessageText = "";
         }
         else
         {
-            Messages.Add(new Message { Text = "⚠️ Cannot send message. WebSocket is disconnected.", IsSent = true });
+            Messages.Add(new WebSocketData { Data = "⚠️ Cannot send message. WebSocket is disconnected.", IsSent = true });
         }
     }
 
@@ -159,28 +159,32 @@
 
                 if (result.MessageType == WebSocketMessageType.Close)
                 {
-                    Messages.Add(new Message { Text = "⚠️ Server closed connection.", IsSent = true });
+                    Messages.Add(new WebSocketData { Data = "⚠️ Server closed connection.", IsSent = true });
                     await WebSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Closing", CancellationToken.None);
                     await ConnectWebSocket();
                     return;
                 }
 
                 var message = Encoding.UTF8.GetString(buffer, 0, result.Count);
-                Messages.Add(new Message { Text = message, IsSent = false });
+                Messages.Add(new WebSocketData { Data = message, IsSent = false });
 
                 await InvokeAsync(StateHasChanged);
             }
         }
         catch (Exception)
         {
-            Messages.Add(new Message { Text = "❌ Connection lost. Reconnecting...", IsSent = true });
+            Messages.Add(new WebSocketData { Data = "❌ Connection lost. Reconnecting...", IsSent = true });
             await ConnectWebSocket();
         }
     }
 
-    private class Message
+    public class WebSocketData
     {
-        public string Text { get; set; } = string.Empty;
-        public bool IsSent { get; set; }
-    }
-} 
+        public string UserName { get; set; } = string.Empty;
+        public string UserId { get; set; } = string.Empty;
+        public string Password { get; set; } = string.Empty;
+        public string Action { get; set; } = string.Empty;
+        public string Data { get; set; } = string.Empty;
+		public bool IsSent { get; set; }
+	}
+}
