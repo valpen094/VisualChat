@@ -1,6 +1,7 @@
 ﻿using System.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 using OllamaSharp;
+using OllamaSharp.Models.Chat;
 
 namespace ChatServer.Controllers
 {
@@ -148,6 +149,14 @@ namespace ChatServer.Controllers
 
                 try
                 {
+                    bool isOptimize = true;
+                    if (isOptimize)
+                    {
+                        OptimizePrompt(ref request);
+                    }
+
+                    Debug.WriteLine($"{DateTime.Now} {request}");
+
                     await foreach (var answerToken in new Chat(_ragService.OllamaClient).SendAsync(request))
                     {
                         if (token.IsCancellationRequested)
@@ -167,6 +176,7 @@ namespace ChatServer.Controllers
                     try
                     {
                         //  await _ragService.Clients.All.SendAsync("ReceiveResult", new { name = "ollama/generate", errorcode = 200, status = "Completed", content = message });
+                        Debug.WriteLine($"{DateTime.Now} {message}");
                         Debug.WriteLine($"{DateTime.Now} Sending completion message.");
                     }
                     catch (Exception ex)
@@ -243,6 +253,30 @@ namespace ChatServer.Controllers
         {
             _ragService.OllamaClient.SelectedModel = model;
             return Ok(new { result = "Accept", content = _ragService.OllamaClient.SelectedModel });
+        }
+
+        /// <summary>
+        /// Optimize the prompt.
+        /// </summary>
+        /// <param name="prompt"></param>
+        private void OptimizePrompt(ref string prompt)
+        {
+            string optimizedPrompt =
+                "Condition: \r\n" +
+                "1. Character limit: 5000\r\n" +
+                "2. It must be in JSON format. Any format other than JSON is not allowed.\r\n" +
+                "3. Do not output ```json & ```\r\n" +
+                "4. The parameters of the JSON statement are as follows: date, accuracy, model, text.\r\n" +
+                "5. Meaning of \"date\": Today's Date,\r\n" +
+                "Meaning of \"accuracy\": The accuracy of your answer as a percentage,\r\n" +
+                "Meaning of \"model\": The name of the language model used,\r\n" +
+                "Meaning of \"text\": Actual answer result (excluding JSON statements)\r\n" +
+                "6. Be sure to display each parameter and output the JSON statement in the following format:\r\n" +
+                "{ \"date\": \"2023-04-15\", \"accuracy\": \"50%\", \"model\": \"GPT-4\", \"text\": \"This is a sample text.\" }" + "\r\n\r\n" +
+                $"Question: {prompt}";
+
+            // Optimaize the prompt.
+            prompt = optimizedPrompt;
         }
     }
 }
