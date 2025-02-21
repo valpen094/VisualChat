@@ -38,15 +38,15 @@ namespace ChatServer.Controllers
                 return BadRequest("Invalid request.");
             }
 
+            if (_ragService.WhisperClient == null)
+            {
+                message = "Whisper client is not available.";
+                Debug.WriteLine($"{DateTime.Now} Error: " + message);
+                return BadRequest(new { Result = "Error", Content = message });
+            }
+
             try
             {
-                if (_ragService.WhisperClient == null)
-                {
-                    message = "Whisper client is not available.";
-                    Debug.WriteLine($"{DateTime.Now} Error: " + message);
-                    return BadRequest(new { Result = "Error", Content = message });
-                }
-
                 const string url = "faster-whisper/api/record";
 
                 string filePath = $"{Directory.GetCurrentDirectory()}\\voice.wav";
@@ -72,7 +72,6 @@ namespace ChatServer.Controllers
             }
             finally
             {
-                // await _ragService.Clients.All.SendAsync("ReceiveResult", new { name = "whisper/record", errorcode = statusCodeValue, status = statusCode, content = message });
                 Debug.WriteLine($"{DateTime.Now} Sending completion message.");
             }
 
@@ -101,14 +100,15 @@ namespace ChatServer.Controllers
                 return BadRequest("Invalid request.");
             }
 
+            if (_ragService.WhisperClient == null)
+            {
+                message = "Whisper client is not available.";
+                Debug.WriteLine($"{DateTime.Now} Error: " + message);
+                return BadRequest(new { Result = "Error", Content = message });
+            }
+
             try
             {
-                if (_ragService.WhisperClient == null)
-                {
-                    message = "Whisper client is not available.";
-                    return BadRequest(new { Result = "Error", Content = message });
-                }
-
                 const string url = "faster-whisper/api/transcribe";
 
                 string filePath = $"{Directory.GetCurrentDirectory()}\\voice.wav";
@@ -147,12 +147,11 @@ namespace ChatServer.Controllers
             catch (Exception ex)
             {
                 message = ex.Message;
-                Debug.WriteLine("Error: " + message);
+                Debug.WriteLine($"{DateTime.Now} Error: " + message);
                 return BadRequest(new { Result = "Error", Content = message });
             }
             finally
             {
-                // await _ragService.Clients.All.SendAsync("ReceiveResult", new { name = "whisper/transcribe", errorcode = statusCodeValue, status = statusCode, content = message });
                 Debug.WriteLine($"{DateTime.Now} Sending completion message.");
             }
 
@@ -181,15 +180,15 @@ namespace ChatServer.Controllers
                 return BadRequest("Invalid request.");
             }
 
+            if (_ragService.WhisperClient == null)
+            {
+                message = "Whisper client is not available.";
+                Debug.WriteLine($"{DateTime.Now} Error: " + message);
+                return BadRequest(new { Result = "Error", Content = message });
+            }
+
             try
             {
-                if (_ragService.WhisperClient == null)
-                {
-                    message = "Whisper client is not available.";
-                    Debug.WriteLine($"{DateTime.Now} Error: " + message);
-                    return BadRequest(new { Result = "Error", Content = message });
-                }
-
                 const string url = "faster-whisper/api/whisper";
 
                 string filePath = $"{Directory.GetCurrentDirectory()}\\voice.wav";
@@ -233,7 +232,6 @@ namespace ChatServer.Controllers
             }
             finally
             {
-                // await _ragService.Clients.All.SendAsync("ReceiveResult", new { name = "whisper/whisper", errorcode = statusCodeValue, status = statusCode, content = message });
                 Debug.WriteLine($"{DateTime.Now} Sending completion message.");
             }
 

@@ -23,16 +23,23 @@ namespace ChatServer.Controllers
         [HttpPost("query")]
         public async Task<IActionResult> QueryAsync([FromBody] DataRequest request)
         {
-            if(request == null)
-            {
-                return BadRequest("Invalid request.");
-            }
-
             string message = string.Empty;
             string className = this.GetType().Name;
             string methodName = MethodBase.GetCurrentMethod().Name;
 
             Debug.WriteLine($"{DateTime.Now} {className}.{methodName}");
+
+            if (request == null)
+            {
+                return BadRequest("Invalid request.");
+            }
+
+            if (_ragService.ChromaClient == null)
+            {
+                message = "ChromaDB is not available.";
+                Debug.WriteLine($"{DateTime.Now} Error: " + message);
+                return BadRequest(new { Result = "Error", Content = message });
+            }
 
             try
             {
