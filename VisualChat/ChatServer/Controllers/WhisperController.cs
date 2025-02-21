@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using System.Diagnostics;
+using System.Reflection;
 using System.Text;
 using System.Text.Json;
 
@@ -23,19 +24,19 @@ namespace ChatServer.Controllers
         [HttpPost("record")]
         public async Task<IActionResult> RecordAsync([FromBody] DataRequest request)
         {
-            StackTrace stackTrace = new StackTrace();
-            StackFrame frame = stackTrace.GetFrame(0);
-            Debug.WriteLine($"{DateTime.Now} {frame.GetMethod().Name}");
+            string message = string.Empty;
+            string className = this.GetType().Name;
+            string methodName = MethodBase.GetCurrentMethod().Name;
+
+            string statusCode = string.Empty;
+            int statusCodeValue = 0;
+
+            Debug.WriteLine($"{DateTime.Now} {className}.{methodName}");
 
             if (request == null)
             {
                 return BadRequest("Invalid request.");
             }
-
-            string message = string.Empty;
-
-            string statusCode = string.Empty;
-            int statusCodeValue = 0;
 
             try
             {
@@ -86,19 +87,19 @@ namespace ChatServer.Controllers
         [HttpPost("transcribe")]
         public async Task<IActionResult> TranscribeAsync([FromBody] DataRequest request)
         {
-            StackTrace stackTrace = new StackTrace();
-            StackFrame frame = stackTrace.GetFrame(0);
-            Debug.WriteLine($"{DateTime.Now} {frame.GetMethod().Name}");
+            string message = string.Empty;
+            string className = this.GetType().Name;
+            string methodName = MethodBase.GetCurrentMethod().Name;
+
+            string statusCode = string.Empty;
+            int statusCodeValue = 0;
+
+            Debug.WriteLine($"{DateTime.Now} {className}.{methodName}");
 
             if (request == null)
             {
                 return BadRequest("Invalid request.");
             }
-
-            string message = string.Empty;
-
-            string statusCode = string.Empty;
-            int statusCodeValue = 0;
 
             try
             {
@@ -166,19 +167,19 @@ namespace ChatServer.Controllers
         [HttpPost("whisper")]
         public async Task<IActionResult> WhisperAsync([FromBody] DataRequest request)
         {
-            StackTrace stackTrace = new StackTrace();
-            StackFrame frame = stackTrace.GetFrame(0);
-            Debug.WriteLine($"{DateTime.Now} {frame.GetMethod().Name}");
+            string message = string.Empty;
+            string className = this.GetType().Name;
+            string methodName = MethodBase.GetCurrentMethod().Name;
+
+            string statusCode = string.Empty;
+            int statusCodeValue = 0;
+
+            Debug.WriteLine($"{DateTime.Now} {className}.{methodName}");
 
             if (request == null)
             {
                 return BadRequest("Invalid request.");
             }
-
-            string message = string.Empty;
-
-            string statusCode = string.Empty;
-            int statusCodeValue = 0;
 
             try
             {
