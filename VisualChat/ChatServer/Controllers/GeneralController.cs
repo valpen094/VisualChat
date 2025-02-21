@@ -24,6 +24,10 @@ namespace ChatServer.Controllers
         [HttpPost("open")]
         public async Task<IActionResult> OpenAsync([FromBody] DataRequest request)
         {
+            StackTrace stackTrace = new StackTrace();
+            StackFrame frame = stackTrace.GetFrame(0);
+            Debug.WriteLine($"{DateTime.Now} {frame.GetMethod().Name}");
+
             if (request == null)
             {
                 return BadRequest("Invalid request.");
@@ -158,6 +162,10 @@ namespace ChatServer.Controllers
         [HttpPost("close")]
         public IActionResult CloseAsync([FromBody] DataRequest request)
         {
+            StackTrace stackTrace = new StackTrace();
+            StackFrame frame = stackTrace.GetFrame(0);
+            Debug.WriteLine($"{DateTime.Now} {frame.GetMethod().Name}");
+
             if (request == null)
             {
                 return BadRequest("Invalid request.");
@@ -210,6 +218,10 @@ namespace ChatServer.Controllers
         [HttpPost("alive")]
         public IActionResult AliveAsync([FromBody] DataRequest request)
         {
+            StackTrace stackTrace = new StackTrace();
+            StackFrame frame = stackTrace.GetFrame(0);
+            Debug.WriteLine($"{DateTime.Now} {frame.GetMethod().Name}");
+
             string message = string.Empty;
             string className = this.GetType().Name;
             string methodName = MethodBase.GetCurrentMethod().Name;
