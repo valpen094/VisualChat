@@ -1,7 +1,7 @@
 ﻿using System.Diagnostics;
+using System.Reflection;
 using Microsoft.AspNetCore.Mvc;
 using OllamaSharp;
-using OllamaSharp.Models.Chat;
 
 namespace ChatServer.Controllers
 {
@@ -14,245 +14,281 @@ namespace ChatServer.Controllers
         /// <summary>
         /// Load a model.
         /// </summary>
-        /// <param name="userId"></param>
-        /// <param name="model"></param>
+        /// <param name="request"></param>
         /// <returns></returns>
-        [HttpGet("pull/{userId}")]
-        public IActionResult PullAsync(string userId, string model)
+        [HttpPost("pull")]
+        public async Task<IActionResult> PullAsync([FromBody] DataRequest request)
         {
             string message = string.Empty;
+            string className = this.GetType().Name;
+            string methodName = MethodBase.GetCurrentMethod().Name;
 
-            // fire-and-forget
-            _ = Task.Run(async () =>
-            {     
-                try
+            string model = request.Data;
+
+            Debug.WriteLine($"{DateTime.Now} {className}.{methodName}");
+
+            if (request == null)
+            {
+                return BadRequest("Invalid request.");
+            }
+
+            if (_ragService.OllamaClient == null)
+            {
+                message = "Ollama is not available.";
+                Debug.WriteLine($"{DateTime.Now} Error: " + message);
+                return BadRequest(new { Result = "Error", Content = message });
+            }
+
+            try
+            {
+                await foreach (var status in _ragService.OllamaClient.PullModelAsync(model))
                 {
-                    await foreach (var status in _ragService.OllamaClient.PullModelAsync(model))
-                    {
-                        message += $"{status.Percent}% {status.Status}\r\n";
-                        Debug.WriteLine($"{DateTime.Now} {status.Percent}% {status.Status}");
-                    }
+                    message += $"{status.Percent}% {status.Status}\r\n";
+                    Debug.WriteLine($"{DateTime.Now} {status.Percent}% {status.Status}");
                 }
-                catch (Exception e)
-                {
-                    message = $"Error: {e.Message}";
-                }
-                finally
-                {
-                    var response = new
-                    {
-                        name = "ollama/pull",
-                        errorcode = 200,
-                        status = "",
-                        content = "",
-                    };
+            }
+            catch (Exception e)
+            {
+                message = e.Message;
+                Debug.WriteLine($"{DateTime.Now} Error: " + message);
+                return BadRequest(new { Result = "Error", Content = message });
+            }
+            finally
+            {
+                Debug.WriteLine($"{DateTime.Now} Sending completion message.");
+            }
 
-                    try
-                    {
-                        //await _ragService.Clients.Client(userId).SendAsync("ReceiveResult", response);
-                        // await _ragService.Clients.All.SendAsync("ReceiveResult", new { name = "ollama/pull", errorcode = 200, status = "Completed", content = message });
-                        Debug.WriteLine($"{DateTime.Now} Sending completion message.");
-                    }
-                    catch (Exception ex)
-                    {
-                        // If an error occurs when sending to the Hub.
-                        Debug.WriteLine($"{DateTime.Now} Error sending to client: {ex.Message}");
-                    }
-                }
-
-            }).ConfigureAwait(false);
-
-            return Ok(new { result = "Accept", content = string.Empty });
+            return Ok(new { Result = "Success", Content = message });
         }
 
         /// <summary>
         /// Chat with a user.
         /// </summary>
-        /// <param name="userId"></param>
-        /// <param name="prompt"></param>
+        /// <param name="request"></param>
         /// <returns></returns>
-        [HttpGet("chat/{userId}")]
-        public IActionResult ChatAsync(string userId, string prompt)
+        [HttpPost("chat")]
+        public async Task<IActionResult> ChatAsync([FromBody] DataRequest request)
         {
+            string message = string.Empty;
+            string className = this.GetType().Name;
+            string methodName = MethodBase.GetCurrentMethod().Name;
+
             List<float[]>? embeddings = null;
 
-            string message = string.Empty;
-            string request = prompt;
+            string prompt = request.Data;
 
             var cancellationTokenSource = new CancellationTokenSource();
             var token = cancellationTokenSource.Token;
 
-            // fire-and-forget
-            _ = Task.Run(async () =>
+            Debug.WriteLine($"{DateTime.Now} {className}.{methodName}");
+
+            if (request == null)
             {
-                try
-                {
-                    // Embed a prompt.
-                    var result = await _ragService.OllamaClient.EmbedAsync(prompt);
-                    embeddings = result.Embeddings;
+                return BadRequest("Invalid request.");
+            }
 
-                    // ChromaDBへクエリを投げる
-                    // 
-                    // Generate a response to a prompt.
-                    await foreach (var answerToken in new Chat(_ragService.OllamaClient).SendAsync(request))
-                    {
-                        if (token.IsCancellationRequested)
-                        {
-                            break;
-                        }
+            if (_ragService.OllamaClient == null)
+            {
+                message = "Ollama is not available.";
+                Debug.WriteLine($"{DateTime.Now} Error: " + message);
+                return BadRequest(new { Result = "Error", Content = message });
+            }
 
-                        message += answerToken;
-                    }
-                }
-                catch (Exception e)
+            try
+            {
+                // Embed a prompt.
+                var result = await _ragService.OllamaClient.EmbedAsync(prompt);
+                embeddings = result.Embeddings;
+
+                // ChromaDBへクエリを投げる
+                // 
+
+                // Optimize the prompt.
+                bool isOptimize = true;
+                if (isOptimize)
                 {
-                    message = $"{DateTime.Now} Error: {e.Message}";
-                }
-                finally
-                {
-                    try
-                    {
-                        // await _ragService.Clients.All.SendAsync("ReceiveResult", new { name = "ollama/chat", errorcode = 200, status = "Completed", content = message });
-                        Debug.WriteLine($"{DateTime.Now} Sending completion message.");
-                    }
-                    catch (Exception ex)
-                    {
-                        // If an error occurs when sending to the Hub.
-                        Debug.WriteLine($"{DateTime.Now} Error sending to client: {ex.Message}");
-                    }
+                    OptimizePrompt(ref prompt);
                 }
 
-            }, token).ConfigureAwait(false);
+                // Generate a response to a prompt.
+                await foreach (var answerToken in new Chat(_ragService.OllamaClient).SendAsync(prompt))
+                {
+                    if (token.IsCancellationRequested)
+                    {
+                        break;
+                    }
 
-            return Ok(new { result = "Accept", content = string.Empty });
+                    message += answerToken;
+                }
+            }
+            catch (Exception e)
+            {
+                message = e.Message;
+                Debug.WriteLine($"{DateTime.Now} Error: " + message);
+                return BadRequest(new { Result = "Error", Content = message });
+            }
+            finally
+            {
+                Debug.WriteLine($"{DateTime.Now} Sending completion message.");
+            }
+
+            return Ok(new { Result = "Success", Content = message });
         }
 
         /// <summary>
-        /// Generate a response to a prompt.
+        /// Chat with a user.
         /// </summary>
-        /// <param name="userId"></param>
-        /// <param name="prompt"></param>
+        /// <param name="request"></param>
         /// <returns></returns>
-        [HttpGet("generate/{userId}")]
-        public IActionResult GenerateAsync(string userId, string prompt)
+        [HttpPost("generate")]
+        public async Task<IActionResult> GenerateAsync([FromBody] DataRequest request)
         {
             string message = string.Empty;
-            string request = prompt;
+            string className = this.GetType().Name;
+            string methodName = MethodBase.GetCurrentMethod().Name;
+
+            string prompt = request.Data;
 
             var cancellationTokenSource = new CancellationTokenSource();
             var token = cancellationTokenSource.Token;
 
-            // fire-and-forget
-            _ = Task.Run(async () =>
+            string response = string.Empty;
+
+            Debug.WriteLine($"{DateTime.Now} {className}.{methodName}");
+
+            if (request == null)
             {
-                string response = string.Empty;
+                return BadRequest("Invalid request.");
+            }
 
-                try
+            if (_ragService.OllamaClient == null)
+            {
+                message = "Ollama is not available.";
+                Debug.WriteLine($"{DateTime.Now} Error: " + message);
+                return BadRequest(new { Result = "Error", Content = message });
+            }
+
+            try
+            {
+                bool isOptimize = true;
+                if (isOptimize)
                 {
-                    bool isOptimize = true;
-                    if (isOptimize)
-                    {
-                        OptimizePrompt(ref request);
-                    }
-
-                    Debug.WriteLine($"{DateTime.Now} {request}");
-
-                    await foreach (var answerToken in new Chat(_ragService.OllamaClient).SendAsync(request))
-                    {
-                        if (token.IsCancellationRequested)
-                        {
-                            break;
-                        }
-
-                        message += answerToken;
-                    }
-                }
-                catch (Exception e)
-                {
-                    message = $"{DateTime.Now} Error: {e.Message}";
-                }
-                finally
-                {
-                    try
-                    {
-                        //  await _ragService.Clients.All.SendAsync("ReceiveResult", new { name = "ollama/generate", errorcode = 200, status = "Completed", content = message });
-                        Debug.WriteLine($"{DateTime.Now} {message}");
-                        Debug.WriteLine($"{DateTime.Now} Sending completion message.");
-                    }
-                    catch (Exception ex)
-                    {
-                        // If an error occurs when sending to the Hub.
-                        Debug.WriteLine($"{DateTime.Now} Error sending to client: {ex.Message}");
-                    }
+                    OptimizePrompt(ref prompt);
                 }
 
-            }, token).ConfigureAwait(false);
+                Debug.WriteLine($"{DateTime.Now} {prompt}");
 
-            return Ok(new { result = "Accept", content = string.Empty });
+                await foreach (var answerToken in new Chat(_ragService.OllamaClient).SendAsync(prompt))
+                {
+                    if (token.IsCancellationRequested)
+                    {
+                        break;
+                    }
+
+                    message += answerToken;
+                }
+
+                Debug.WriteLine($"{DateTime.Now} {message}");
+            }
+            catch (Exception e)
+            {
+                message = e.Message;
+                Debug.WriteLine($"{DateTime.Now} Error: " + message);
+                return BadRequest(new { Result = "Error", Content = message });
+            }
+            finally
+            {
+                Debug.WriteLine($"{DateTime.Now} Sending completion message.");
+            }
+
+            return Ok(new { result = "Success", Content = message });
         }
 
         /// <summary>
         /// Embed a prompt.
         /// </summary>
-        /// <param name="userId"></param>
-        /// <param name="prompt"></param>
+        /// <param name="request"></param>
         /// <returns></returns>
-        [HttpGet("embed/{userId}")]
-        public IActionResult EmbedAsync(string userId, string prompt)
+        [HttpPost("embed")]
+        public async Task<IActionResult> EmbedAsync([FromBody] DataRequest request)
         {
-            object? message = null;
+            string message = string.Empty;
+            string className = this.GetType().Name;
+            string methodName = MethodBase.GetCurrentMethod().Name;
 
-            var cancellationTokenSource = new CancellationTokenSource();
-            var token = cancellationTokenSource.Token;
+            string prompt = request.Data;
 
-            // fire-and-forget
-            _ = Task.Run(async () =>
+            Debug.WriteLine($"{DateTime.Now} {className}.{methodName}");
+
+            if (request == null)
             {
-                try
-                {
-                    var result = await _ragService.OllamaClient.EmbedAsync(prompt);
-                    message = result.Embeddings;
-                }
-                catch (Exception e)
-                {
-                    // If an error occurs when embedding the prompt.
-                    message = $"Error: {e.Message}";
-                }
-                finally
-                {
-                    try
-                    {
-                        if (message == null)
-                        {
-                            message = new List<float[]>();
-                        }
+                return BadRequest("Invalid request.");
+            }
 
-                        // await _ragService.Clients.All.SendAsync("ReceiveResult", new { name = "ollama/embed", errorcode = 200, status = "Completed", content = message });
-                        Debug.WriteLine($"{DateTime.Now} Sending completion message.");
-                    }
-                    catch (Exception ex)
+            if (_ragService.OllamaClient == null)
+            {
+                message = "Ollama is not available.";
+                Debug.WriteLine($"{DateTime.Now} Error: " + message);
+                return BadRequest(new { Result = "Error", Content = message });
+            }
+
+            try
+            {
+                var result = await _ragService.OllamaClient.EmbedAsync(prompt);
+                if (result.Embeddings != null)
+                {
+                    if (result.Embeddings.Count != 0)
                     {
-                        // If an error occurs when sending to the Hub.
-                        Debug.WriteLine($"{DateTime.Now} Error sending to client: {ex.Message}");
+                        _ragService.QueryEmbedding = result.Embeddings[0];
+                        message = _ragService.QueryEmbedding.ToString();
                     }
                 }
+            }
+            catch (Exception e)
+            {
+                // If an error occurs when embedding the prompt.
+                message = e.Message;
+                Debug.WriteLine($"{DateTime.Now} Error: " + message);
+                return BadRequest(new { Result = "Error", Content = message });
+            }
+            finally
+            {
+                Debug.WriteLine($"{DateTime.Now} Sending completion message.");
+            }
 
-            }, token).ConfigureAwait(false);
-
-            return Ok(new { result = "Accept", content = string.Empty });
+            return Ok(new { Result = "Success", Content = message });
         }
 
         /// <summary>
-        /// Select a model.
+        /// Chat with a user.
         /// </summary>
-        /// <param name="userId"></param>
-        /// <param name="model"></param>
+        /// <param name="request"></param>
         /// <returns></returns>
-        [HttpGet("select/{userId}")]
-        public IActionResult SelectModel(string userId, string model)
+        [HttpPost("select")]
+        public IActionResult SelectModel([FromBody] DataRequest request)
         {
+            string message = string.Empty;
+            string className = this.GetType().Name;
+            string methodName = MethodBase.GetCurrentMethod().Name;
+
+            string model = request.Data;
+
+            Debug.WriteLine($"{DateTime.Now} {className}.{methodName}");
+
+            if (request == null)
+            {
+                return BadRequest("Invalid request.");
+            }
+
+            if (_ragService.OllamaClient == null)
+            {
+                message = "Ollama is not available.";
+                Debug.WriteLine($"{DateTime.Now} Error: " + message);
+                return BadRequest(new { Result = "Error", Content = message });
+            }
+
             _ragService.OllamaClient.SelectedModel = model;
-            return Ok(new { result = "Accept", content = _ragService.OllamaClient.SelectedModel });
+            return Ok(new { result = "Success", content = model });
         }
 
         /// <summary>
@@ -262,17 +298,15 @@ namespace ChatServer.Controllers
         private void OptimizePrompt(ref string prompt)
         {
             string optimizedPrompt =
-                "Condition: \r\n" +
-                "1. Character limit: 5000\r\n" +
+                "\r\nCondition: \r\n" +
+                "1. From now on, you will become a machine that answers product names. No opinions or subjectivity are necessary.\r\n" +
                 "2. It must be in JSON format. Any format other than JSON is not allowed.\r\n" +
-                "3. Do not output ```json & ```\r\n" +
-                "4. The parameters of the JSON statement are as follows: date, accuracy, model, text.\r\n" +
-                "5. Meaning of \"date\": Today's Date,\r\n" +
-                "Meaning of \"accuracy\": The accuracy of your answer as a percentage,\r\n" +
-                "Meaning of \"model\": The name of the language model used,\r\n" +
-                "Meaning of \"text\": Actual answer result (excluding JSON statements)\r\n" +
-                "6. Be sure to display each parameter and output the JSON statement in the following format:\r\n" +
-                "{ \"date\": \"2023-04-15\", \"accuracy\": \"50%\", \"model\": \"GPT-4\", \"text\": \"This is a sample text.\" }" + "\r\n\r\n" +
+                "3. The parameters of the JSON statement are as follows: accuracy, text(array: 5 elements).\r\n" +
+                "4. Meaning of \"accuracy\": The accuracy of your answer as a percentage, Meaning of \"text\": Actual answer result (excluding JSON statements)\r\n" +
+                "5. Be sure to display each parameter and output the JSON statement in the following format: { \"accuracy\": \"50%\", \"text\": [ \"This is a sample text_1.\", \"This is a sample text_2.\", \"This is a sample text_3.\", \"This is a sample text_4.\", \"This is a sample text_5.\" ] }" + "\r\n" +
+                "6. If the information is insufficient, set { \"accuracy\": \"0%\" and \"text\": [ \"unknown\" ] } \r\n" +
+                "7. You can only put a maximum of 50 characters in text.\r\n" +
+                "8. Do not output ```json & ```\r\n\r\n" +
                 $"Question: {prompt}";
 
             // Optimaize the prompt.
