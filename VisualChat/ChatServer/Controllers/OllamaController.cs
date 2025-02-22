@@ -17,13 +17,9 @@ namespace ChatServer.Controllers
         [HttpPost("pull")]
         public async Task<IActionResult> PullAsync([FromBody] DataRequest request)
         {
+            using Log log = new(GetType().Name, "PullAsync");
             string message = string.Empty;
-            string className = this.GetType().Name;
-            string methodName = MethodBase.GetCurrentMethod().Name;
-
             string model = request.Data;
-
-            Debug.WriteLine($"{DateTime.Now} {className}.{methodName}");
 
             if (request == null)
             {
@@ -33,7 +29,7 @@ namespace ChatServer.Controllers
             if (_ragService.OllamaClient == null)
             {
                 message = "Ollama is not available.";
-                Debug.WriteLine($"{DateTime.Now} Error: " + message);
+                log.WriteLine($"Error: " + message);
                 return BadRequest(new { Result = "Error", Content = message });
             }
 
@@ -42,18 +38,14 @@ namespace ChatServer.Controllers
                 await foreach (var status in _ragService.OllamaClient.PullModelAsync(model))
                 {
                     message += $"{status.Percent}% {status.Status}\r\n";
-                    Debug.WriteLine($"{DateTime.Now} {status.Percent}% {status.Status}");
+                    log.WriteLine($"{status.Percent}% {status.Status}");
                 }
             }
             catch (Exception e)
             {
                 message = e.Message;
-                Debug.WriteLine($"{DateTime.Now} Error: " + message);
+                log.WriteLine($"Error: " + message);
                 return BadRequest(new { Result = "Error", Content = message });
-            }
-            finally
-            {
-                Debug.WriteLine($"{DateTime.Now} Sending completion message.");
             }
 
             return Ok(new { Result = "Success", Content = message });
@@ -67,9 +59,8 @@ namespace ChatServer.Controllers
         [HttpPost("chat")]
         public async Task<IActionResult> ChatAsync([FromBody] DataRequest request)
         {
+            using Log log = new(GetType().Name, "ChatAsync");
             string message = string.Empty;
-            string className = this.GetType().Name;
-            string methodName = MethodBase.GetCurrentMethod().Name;
 
             List<float[]>? embeddings = null;
 
@@ -77,8 +68,6 @@ namespace ChatServer.Controllers
 
             var cancellationTokenSource = new CancellationTokenSource();
             var token = cancellationTokenSource.Token;
-
-            Debug.WriteLine($"{DateTime.Now} {className}.{methodName}");
 
             if (request == null)
             {
@@ -88,7 +77,7 @@ namespace ChatServer.Controllers
             if (_ragService.OllamaClient == null)
             {
                 message = "Ollama is not available.";
-                Debug.WriteLine($"{DateTime.Now} Error: " + message);
+                log.WriteLine($"Error: " + message);
                 return BadRequest(new { Result = "Error", Content = message });
             }
 
@@ -122,12 +111,8 @@ namespace ChatServer.Controllers
             catch (Exception e)
             {
                 message = e.Message;
-                Debug.WriteLine($"{DateTime.Now} Error: " + message);
+                log.WriteLine($"Error: " + message);
                 return BadRequest(new { Result = "Error", Content = message });
-            }
-            finally
-            {
-                Debug.WriteLine($"{DateTime.Now} Sending completion message.");
             }
 
             return Ok(new { Result = "Success", Content = message });
@@ -141,9 +126,8 @@ namespace ChatServer.Controllers
         [HttpPost("generate")]
         public async Task<IActionResult> GenerateAsync([FromBody] DataRequest request)
         {
+            using Log log = new(GetType().Name, "GenerateAsync");
             string message = string.Empty;
-            string className = this.GetType().Name;
-            string methodName = MethodBase.GetCurrentMethod().Name;
 
             string prompt = request.Data;
 
@@ -151,8 +135,6 @@ namespace ChatServer.Controllers
             var token = cancellationTokenSource.Token;
 
             string response = string.Empty;
-
-            Debug.WriteLine($"{DateTime.Now} {className}.{methodName}");
 
             if (request == null)
             {
@@ -162,7 +144,7 @@ namespace ChatServer.Controllers
             if (_ragService.OllamaClient == null)
             {
                 message = "Ollama is not available.";
-                Debug.WriteLine($"{DateTime.Now} Error: " + message);
+                log.WriteLine($"Error: " + message);
                 return BadRequest(new { Result = "Error", Content = message });
             }
 
@@ -174,7 +156,7 @@ namespace ChatServer.Controllers
                     OptimizePrompt(ref prompt);
                 }
 
-                Debug.WriteLine($"{DateTime.Now} {prompt}");
+                log.WriteLine($"{prompt}");
 
                 await foreach (var answerToken in new Chat(_ragService.OllamaClient).SendAsync(prompt))
                 {
@@ -186,17 +168,13 @@ namespace ChatServer.Controllers
                     message += answerToken;
                 }
 
-                Debug.WriteLine($"{DateTime.Now} {message}");
+                log.WriteLine($"{message}");
             }
             catch (Exception e)
             {
                 message = e.Message;
-                Debug.WriteLine($"{DateTime.Now} Error: " + message);
+                log.WriteLine($"Error: " + message);
                 return BadRequest(new { Result = "Error", Content = message });
-            }
-            finally
-            {
-                Debug.WriteLine($"{DateTime.Now} Sending completion message.");
             }
 
             return Ok(new { result = "Success", Content = message });
@@ -210,13 +188,9 @@ namespace ChatServer.Controllers
         [HttpPost("embed")]
         public async Task<IActionResult> EmbedAsync([FromBody] DataRequest request)
         {
+            using Log log = new(GetType().Name, "EmbedAsync");
             string message = string.Empty;
-            string className = this.GetType().Name;
-            string methodName = MethodBase.GetCurrentMethod().Name;
-
             string prompt = request.Data;
-
-            Debug.WriteLine($"{DateTime.Now} {className}.{methodName}");
 
             if (request == null)
             {
@@ -226,7 +200,7 @@ namespace ChatServer.Controllers
             if (_ragService.OllamaClient == null)
             {
                 message = "Ollama is not available.";
-                Debug.WriteLine($"{DateTime.Now} Error: " + message);
+                log.WriteLine($"Error: " + message);
                 return BadRequest(new { Result = "Error", Content = message });
             }
 
@@ -246,12 +220,8 @@ namespace ChatServer.Controllers
             {
                 // If an error occurs when embedding the prompt.
                 message = e.Message;
-                Debug.WriteLine($"{DateTime.Now} Error: " + message);
+                log.WriteLine($"Error: " + message);
                 return BadRequest(new { Result = "Error", Content = message });
-            }
-            finally
-            {
-                Debug.WriteLine($"{DateTime.Now} Sending completion message.");
             }
 
             return Ok(new { Result = "Success", Content = message });
@@ -263,15 +233,11 @@ namespace ChatServer.Controllers
         /// <param name="request"></param>
         /// <returns></returns>
         [HttpPost("select")]
-        public IActionResult SelectModel([FromBody] DataRequest request)
+        public IActionResult SelectModelSync([FromBody] DataRequest request)
         {
+            using Log log = new(GetType().Name, "SelectModelSync");
             string message = string.Empty;
-            string className = this.GetType().Name;
-            string methodName = MethodBase.GetCurrentMethod().Name;
-
             string model = request.Data;
-
-            Debug.WriteLine($"{DateTime.Now} {className}.{methodName}");
 
             if (request == null)
             {
@@ -281,7 +247,7 @@ namespace ChatServer.Controllers
             if (_ragService.OllamaClient == null)
             {
                 message = "Ollama is not available.";
-                Debug.WriteLine($"{DateTime.Now} Error: " + message);
+                log.WriteLine($"Error: " + message);
                 return BadRequest(new { Result = "Error", Content = message });
             }
 
