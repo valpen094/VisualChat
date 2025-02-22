@@ -15,7 +15,6 @@ namespace ChatServer
 
         public const string ChromaCollectionName = "docs";
 
-        private ILogger<RAGService> Logger { get; set; }
         public OllamaApiClient? OllamaClient { get; set; }
         public ChromaClient? ChromaClient { get; set; }
         public HttpClient? ChromaHttpClient { get; set; }
@@ -26,11 +25,6 @@ namespace ChatServer
         /// Numeric Vector Data
         /// </summary>
         public float[]? QueryEmbedding { get; set; } = [0, 0f, 1.1f, 2.2f, 3.3f, 4.4f, 5.5f, 6.6f, 7.7f, 8.8f, 9.9f];
-
-        public RAGService(ILogger<RAGService> _logger)
-        {
-            Logger = _logger;
-        }
     }
 
     /// <summary>

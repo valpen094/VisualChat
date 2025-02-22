@@ -11,10 +11,15 @@ namespace ChatServer.Controllers
     /// <param name="ragService"></param>
     [ApiController]
     [Route("api/[controller]")]
-    public class ChromaController(RAGService ragService) : ControllerBase
+    public class ChromaController : ControllerBase
     {
-        private readonly RAGService _ragService = ragService;
-　
+        private readonly RAGService _ragService;
+
+        public ChromaController(RAGService ragService)
+        {
+            _ragService = ragService;
+        }
+
         /// <summary>
         /// Query the ChromaDB.
         /// </summary>
@@ -23,12 +28,9 @@ namespace ChatServer.Controllers
         [HttpPost("query")]
         public async Task<IActionResult> QueryAsync([FromBody] DataRequest request)
         {
+            using Log log = new(GetType().Name, "QueryAsync");
             string message = string.Empty;
-            string className = this.GetType().Name;
-            string methodName = MethodBase.GetCurrentMethod().Name;
-
-            Debug.WriteLine($"{DateTime.Now} {className}.{methodName}");
-
+            
             if (request == null)
             {
                 return BadRequest("Invalid request.");
@@ -37,13 +39,13 @@ namespace ChatServer.Controllers
             if (_ragService.ChromaClient == null)
             {
                 message = "ChromaDB is not available.";
-                Debug.WriteLine($"{DateTime.Now} Error: " + message);
+                log.WriteLine($"Error: " + message);
                 return BadRequest(new { Result = "Error", Content = message });
             }
 
             try
             {
-                Debug.WriteLine($"{DateTime.Now} Start query.");
+                log.WriteLine($"Start query.");
 
                 // Create where condition
                 ChromaWhereOperator whereCondition = null;
@@ -59,7 +61,7 @@ namespace ChatServer.Controllers
                     // where: new ("key", "$in", "values")
                 );
 
-                Debug.WriteLine($"{DateTime.Now} End query.");
+                log.WriteLine($"End query.");
 
                 foreach (var item in queryData)
                 {
@@ -72,11 +74,10 @@ namespace ChatServer.Controllers
             catch (Exception ex)
             {
                 message = ex.Message;
-                Debug.WriteLine($"{DateTime.Now} Error: {message}");
+                log.WriteLine($"Error: {message}");
                 return BadRequest(new { Result = "Error", Content = message });
             }
 
-            Debug.WriteLine($"{DateTime.Now} Sending completion message.");
             return Ok(new { result = "Success", content = message });
         }
     }

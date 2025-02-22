@@ -24,14 +24,11 @@ namespace ChatServer.Controllers
         [HttpPost("record")]
         public async Task<IActionResult> RecordAsync([FromBody] DataRequest request)
         {
+            using Log log = new(GetType().Name, "RecordAsync");
             string message = string.Empty;
-            string className = this.GetType().Name;
-            string methodName = MethodBase.GetCurrentMethod().Name;
 
             string statusCode = string.Empty;
             int statusCodeValue = 0;
-
-            Debug.WriteLine($"{DateTime.Now} {className}.{methodName}");
 
             if (request == null)
             {
@@ -41,7 +38,7 @@ namespace ChatServer.Controllers
             if (_ragService.WhisperClient == null)
             {
                 message = "Whisper client is not available.";
-                Debug.WriteLine($"{DateTime.Now} Error: " + message);
+                log.WriteLine($"Error: " + message);
                 return BadRequest(new { Result = "Error", Content = message });
             }
 
@@ -62,17 +59,13 @@ namespace ChatServer.Controllers
 
                 // Receive the response from the server.
                 message = await response.Content.ReadAsStringAsync();
-                Debug.WriteLine($"{DateTime.Now} POST Response: {message}");
+                log.WriteLine($"POST Response: {message}");
             }
             catch (Exception ex)
             {
                 message = ex.Message;
-                Debug.WriteLine($"{DateTime.Now} Error: " + message);
+                log.WriteLine($"Error: " + message);
                 return BadRequest(new { Result = "Error", Content = message });
-            }
-            finally
-            {
-                Debug.WriteLine($"{DateTime.Now} Sending completion message.");
             }
 
             return Ok(new { Result = "Success", Content = message });
@@ -86,14 +79,11 @@ namespace ChatServer.Controllers
         [HttpPost("transcribe")]
         public async Task<IActionResult> TranscribeAsync([FromBody] DataRequest request)
         {
+            using Log log = new(GetType().Name, "TranscribeAsync");
             string message = string.Empty;
-            string className = this.GetType().Name;
-            string methodName = MethodBase.GetCurrentMethod().Name;
 
             string statusCode = string.Empty;
             int statusCodeValue = 0;
-
-            Debug.WriteLine($"{DateTime.Now} {className}.{methodName}");
 
             if (request == null)
             {
@@ -103,7 +93,7 @@ namespace ChatServer.Controllers
             if (_ragService.WhisperClient == null)
             {
                 message = "Whisper client is not available.";
-                Debug.WriteLine($"{DateTime.Now} Error: " + message);
+                log.WriteLine($"Error: " + message);
                 return BadRequest(new { Result = "Error", Content = message });
             }
 
@@ -124,7 +114,7 @@ namespace ChatServer.Controllers
 
                 // Receive the response from the server.
                 message = await response.Content.ReadAsStringAsync();
-                Debug.WriteLine($"{DateTime.Now} POST Response: {message}");
+                log.WriteLine($"POST Response: {message}");
 
                 if (response.IsSuccessStatusCode)
                 {
@@ -133,26 +123,22 @@ namespace ChatServer.Controllers
                     {
                         foreach (var segment in result.segments)
                         {
-                            Debug.WriteLine($"{DateTime.Now} [{segment.start}s - {segment.end}s] {segment.text}");
+                            log.WriteLine($"[{segment.start}s - {segment.end}s] {segment.text}");
                         }
                     }
                 }
                 else
                 {
                     message = statusCode;
-                    Debug.WriteLine($"{DateTime.Now} Error: {statusCodeValue}, {message}");
+                    log.WriteLine($"Error: {statusCodeValue}, {message}");
                     return BadRequest(new { Result = "Error", Content = message });
                 }
             }
             catch (Exception ex)
             {
                 message = ex.Message;
-                Debug.WriteLine($"{DateTime.Now} Error: " + message);
+                log.WriteLine($"Error: " + message);
                 return BadRequest(new { Result = "Error", Content = message });
-            }
-            finally
-            {
-                Debug.WriteLine($"{DateTime.Now} Sending completion message.");
             }
 
             return Ok(new { Result = "Success", Content = message });
@@ -166,14 +152,11 @@ namespace ChatServer.Controllers
         [HttpPost("whisper")]
         public async Task<IActionResult> WhisperAsync([FromBody] DataRequest request)
         {
+            using Log log = new(GetType().Name, "WhisperAsync");
             string message = string.Empty;
-            string className = this.GetType().Name;
-            string methodName = MethodBase.GetCurrentMethod().Name;
 
             string statusCode = string.Empty;
             int statusCodeValue = 0;
-
-            Debug.WriteLine($"{DateTime.Now} {className}.{methodName}");
 
             if (request == null)
             {
@@ -183,7 +166,7 @@ namespace ChatServer.Controllers
             if (_ragService.WhisperClient == null)
             {
                 message = "Whisper client is not available.";
-                Debug.WriteLine($"{DateTime.Now} Error: " + message);
+                log.WriteLine($"Error: " + message);
                 return BadRequest(new { Result = "Error", Content = message });
             }
 
@@ -204,7 +187,7 @@ namespace ChatServer.Controllers
 
                 // Receive the response from the server.
                 message = await response.Content.ReadAsStringAsync();
-                Debug.WriteLine($"{DateTime.Now} POST Response: {message}");
+                log.WriteLine($"POST Response: {message}");
 
                 if (response.IsSuccessStatusCode)
                 {
@@ -213,26 +196,22 @@ namespace ChatServer.Controllers
                     {
                         foreach (var segment in result.segments)
                         {
-                            Debug.WriteLine($"{DateTime.Now} [{segment.start}s - {segment.end}s] {segment.text}");
+                            log.WriteLine($"[{segment.start}s - {segment.end}s] {segment.text}");
                         }
                     }
                 }
                 else
                 {
                     message = statusCode;
-                    Debug.WriteLine($"{DateTime.Now} Error: {statusCodeValue}, {message}");
+                    log.WriteLine($"Error: {statusCodeValue}, {message}");
                     return BadRequest(new { Result = "Error", Content = message });
                 }
             }
             catch (Exception ex)
             {
                 message = ex.Message;
-                Debug.WriteLine($"{DateTime.Now} Error: " + message);
+                log.WriteLine($"Error: " + message);
                 return BadRequest(new { Result = "Error", Content = message });
-            }
-            finally
-            {
-                Debug.WriteLine($"{DateTime.Now} Sending completion message.");
             }
 
             return Ok(new { Result = "Success", Content = message });
