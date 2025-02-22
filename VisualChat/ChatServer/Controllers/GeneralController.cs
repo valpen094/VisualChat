@@ -13,10 +13,8 @@ namespace ChatServer.Controllers
     /// <param name="ragService"></param>
     [ApiController]
     [Route("api/[controller]")]
-    public class GeneralController(RAGService ragService) : ControllerBase
+    public class GeneralController(RAGService ragService) : CustomController(ragService)
     {
-        private readonly RAGService _ragService = ragService;
-
         /// <summary>
         /// Open the server.
         /// </summary>

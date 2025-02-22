@@ -12,10 +12,8 @@ namespace ChatServer.Controllers
     /// <param name="ragService"></param>
     [ApiController]
     [Route("api/[controller]")]
-    public class WhisperController(RAGService ragService) : ControllerBase
+    public class WhisperController(RAGService ragService) : CustomController(ragService)
     {
-        private readonly RAGService _ragService = ragService ?? throw new ArgumentNullException(nameof(ragService));
-
         /// <summary>
         /// Record the voice and send the result to the user.
         /// </summary>

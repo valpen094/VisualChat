@@ -7,10 +7,8 @@ namespace ChatServer.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    public class OllamaController(RAGService ragService) : ControllerBase
+    public class OllamaController(RAGService ragService) : CustomController(ragService)
     {
-        private readonly RAGService _ragService = ragService;
-
         /// <summary>
         /// Load a model.
         /// </summary>
