@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using OllamaSharp;
 using System.Diagnostics;
+using System.Net.Sockets;
 using System.Reflection;
 
 namespace ChatServer.Controllers
@@ -26,63 +27,56 @@ namespace ChatServer.Controllers
             using Log log = new(GetType().Name, "OpenAsync");
             string message = string.Empty;
 
-            List<Process[]> psList =
-            [
-                Process.GetProcessesByName(RAGService.OllamaProcessName),
-                Process.GetProcessesByName(RAGService.ChromaProcessName),
-                Process.GetProcessesByName(RAGService.WhisperProcessName),
-            ];
+            List<string> serviceNameList = [RAGService.OllamaProcessName, RAGService.ChromaProcessName, RAGService.WhisperProcessName];
+            List<Tuple<string, string>> serviceList = [_ragService.OllamaUri, _ragService.ChromaUri, _ragService.WhisperUri];
             List<ProcessStartInfo> psiList =
             [
                 new()
                 {
                     FileName = "cmd.exe",
                     Arguments = "/c ollama serve",
-                    CreateNoWindow = false, // true: not display window, false: display window
+                    CreateNoWindow = true, // true: not display window, false: display window
                     UseShellExecute = false
                 },
                 new()
                 {
                     FileName = "cmd.exe",
                     Arguments = $"/c chroma.exe run --path \"..\\chromadb\" --host {_ragService.ChromaUri.Item1} --port {_ragService.ChromaUri.Item2}",
-                    CreateNoWindow = false, // true: not display window, false: display window
+                    CreateNoWindow = true, // true: not display window, false: display window
                     UseShellExecute = false
                 },
                 new()
                 {
-                    FileName = "",
+                    FileName = Path.GetFullPath("..\\TranscriptionServer\\faster-whisper_server.bat"),
                     Arguments = "",
                     CreateNoWindow = false, // true: not display window, false: display window
-                    UseShellExecute = false
+                    UseShellExecute = false,
+                    WorkingDirectory = Path.GetFullPath("..\\TranscriptionServer")
                 },
             ];
-            List<string> psNameList = [RAGService.OllamaProcessName, RAGService.ChromaProcessName, RAGService.WhisperProcessName];
 
             if (request == null)
             {
                 return BadRequest("Invalid request.");
             }
 
-            var processes = psList.SelectMany(p => p).Where(p => p != null).ToArray();
-
-            for (int i = 0; i < psList.Count; i++)
+            for (int i = 0; i < serviceList.Count; i++)
             {
-                // Check if the process is running
-                bool isRunning = psList[i].Length != 0;
-
                 try
                 {
-                    string processName = psNameList[i];
+                    string serviceName = serviceNameList[i];
 
+                    // Check if the port is open
+                    bool isRunning = IsPortOpen(serviceList[i].Item1, int.Parse(serviceList[i].Item2));
                     if (!isRunning)
                     {
-                        log.WriteLine($"There is not {processName} process.");
+                        log.WriteLine($"There is not {serviceName} process.");
 
                         // Start the process
                         try
                         {
                             Process.Start(psiList[i]);
-                            log.WriteLine($"Start the {processName} server.");
+                            log.WriteLine($"Start the {serviceName} server.");
                         }
                         catch (Exception ex)
                         {
@@ -92,7 +86,7 @@ namespace ChatServer.Controllers
 
                     string url = string.Empty;
 
-                    switch (processName)
+                    switch (serviceName)
                     {
                         case RAGService.OllamaProcessName:
                             url = $"http://{_ragService.OllamaUri.Item1}:{_ragService.OllamaUri.Item2}";
@@ -124,6 +118,7 @@ namespace ChatServer.Controllers
                             log.WriteLine("Collection obtained.");
                             break;
                         case RAGService.WhisperProcessName:
+                            Thread.Sleep(10000); // Wait for the server to start.
                             url = $"http://{_ragService.WhisperUri.Item1}:{_ragService.WhisperUri.Item2}";
                             log.WriteLine($"Connecting to {url}...");
                             _ragService.WhisperClient = new HttpClient { BaseAddress = new Uri(url) };
@@ -210,6 +205,28 @@ namespace ChatServer.Controllers
             }
 
             return Ok(new { Result = "Success", Content = message });
+        }
+
+        /// <summary>
+        /// Check if the port is open.
+        /// </summary>
+        /// <param name="host"></param>
+        /// <param name="port"></param>
+        /// <returns></returns>
+        private bool IsPortOpen(string host, int port)
+        {
+            try
+            {
+                using (TcpClient client = new TcpClient())
+                {
+                    client.Connect(host, port);
+                    return true; // Port is in use and connection is successful.
+                }
+            }
+            catch (SocketException)
+            {
+                return false; // Failed to connect.
+            }
         }
     }
 }
