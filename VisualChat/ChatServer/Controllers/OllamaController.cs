@@ -13,6 +13,9 @@ namespace ChatServer.Controllers
     [Route("api/[controller]")]
     public class OllamaController(RAGService _ragService) : ControllerBase
     {
+
+#if DEBUG
+
         /// <summary>
         /// Load a model.
         /// </summary>
@@ -27,14 +30,15 @@ namespace ChatServer.Controllers
 
             if (request == null)
             {
-                return BadRequest("Invalid request.");
+                message = "Invalid request.";
+                return BadRequest(new { result = "Error", content = message });
             }
 
             if (_ragService.OllamaClient == null)
             {
                 message = "Ollama is not available.";
                 log.WriteLine($"Error: " + message);
-                return BadRequest(new { Result = "Error", Content = message });
+                return BadRequest(new { result = "Error", content = message });
             }
 
             try
@@ -49,11 +53,153 @@ namespace ChatServer.Controllers
             {
                 message = e.Message;
                 log.WriteLine($"Error: " + message);
-                return BadRequest(new { Result = "Error", Content = message });
+                return BadRequest(new { result = "Error", content = message });
             }
 
-            return Ok(new { Result = "Success", Content = message });
+            return Ok(new { result = "Success", content = message });
         }
+
+        /// <summary>
+        /// Chat with a user.
+        /// </summary>
+        /// <param name="request"></param>
+        /// <returns></returns>
+        [HttpPost("generate")]
+        public async Task<IActionResult> GenerateAsync([FromBody] DataRequest request)
+        {
+            using Log log = new(GetType().Name, "GenerateAsync");
+            string message = string.Empty;
+
+            string prompt = request.Data;
+
+            var cancellationTokenSource = new CancellationTokenSource();
+            var token = cancellationTokenSource.Token;
+
+            string response = string.Empty;
+
+            if (request == null)
+            {
+                message = "Invalid request.";
+                return BadRequest(new { result = "Error", content = message });
+            }
+
+            if (_ragService.OllamaClient == null)
+            {
+                message = "Ollama is not available.";
+                log.WriteLine($"Error: " + message);
+                return BadRequest(new { result = "Error", content = message });
+            }
+
+            try
+            {
+                bool isOptimize = true;
+                if (isOptimize)
+                {
+                    OptimizePrompt(ref prompt);
+                }
+
+                log.WriteLine($"{prompt}");
+
+                await foreach (var answerToken in new Chat(_ragService.OllamaClient).SendAsync(prompt))
+                {
+                    if (token.IsCancellationRequested)
+                    {
+                        break;
+                    }
+
+                    message += answerToken;
+                }
+
+                log.WriteLine($"{message}");
+            }
+            catch (Exception e)
+            {
+                message = e.Message;
+                log.WriteLine($"Error: " + message);
+                return BadRequest(new { result = "Error", content = message });
+            }
+
+            return Ok(new { result = "Success", Content = message });
+        }
+
+        /// <summary>
+        /// Embed a prompt.
+        /// </summary>
+        /// <param name="request"></param>
+        /// <returns></returns>
+        [HttpPost("embed")]
+        public async Task<IActionResult> EmbedAsync([FromBody] DataRequest request)
+        {
+            using Log log = new(GetType().Name, "EmbedAsync");
+            string message = string.Empty;
+            string prompt = request.Data;
+
+            if (request == null)
+            {
+                message = "Invalid request.";
+                return BadRequest(new { result = "Error", content = message });
+            }
+
+            if (_ragService.OllamaClient == null)
+            {
+                message = "Ollama is not available.";
+                log.WriteLine($"Error: " + message);
+                return BadRequest(new { result = "Error", content = message });
+            }
+
+            try
+            {
+                var result = await _ragService.OllamaClient.EmbedAsync(prompt);
+                if (result.Embeddings != null)
+                {
+                    if (result.Embeddings.Count != 0)
+                    {
+                        _ragService.QueryEmbedding = result.Embeddings[0];
+                        message = _ragService.QueryEmbedding.ToString();
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                // If an error occurs when embedding the prompt.
+                message = e.Message;
+                log.WriteLine($"Error: " + message);
+                return BadRequest(new { result = "Error", content = message });
+            }
+
+            return Ok(new { result = "Success", content = message });
+        }
+
+        /// <summary>
+        /// Chat with a user.
+        /// </summary>
+        /// <param name="request"></param>
+        /// <returns></returns>
+        [HttpPost("select")]
+        public IActionResult SelectModelSync([FromBody] DataRequest request)
+        {
+            using Log log = new(GetType().Name, "SelectModelSync");
+            string message = string.Empty;
+            string model = request.Data;
+
+            if (request == null)
+            {
+                message = "Invalid request.";
+                return BadRequest(new { result = "Error", content = message });
+            }
+
+            if (_ragService.OllamaClient == null)
+            {
+                message = "Ollama is not available.";
+                log.WriteLine($"Error: " + message);
+                return BadRequest(new { result = "Error", content = message });
+            }
+
+            _ragService.OllamaClient.SelectedModel = model;
+            return Ok(new { result = "Success", content = model });
+        }
+
+#endif
 
         /// <summary>
         /// Chat with a user.
@@ -75,14 +221,15 @@ namespace ChatServer.Controllers
 
             if (request == null)
             {
-                return BadRequest("Invalid request.");
+                message = "Invalid request.";
+                return BadRequest(new { result = "Error", content = message });
             }
 
             if (_ragService.OllamaClient == null)
             {
                 message = "Ollama is not available.";
                 log.WriteLine($"Error: " + message);
-                return BadRequest(new { Result = "Error", Content = message });
+                return BadRequest(new { result = "Error", content = message });
             }
 
             try
@@ -105,7 +252,7 @@ namespace ChatServer.Controllers
 
                 // Query the database
                 log.WriteLine($"Start query.");
-                
+
                 ChromaWhereOperator whereCondition = null; // Create where condition
                 ChromaWhereDocumentOperator whereDocumentCondition = ChromaWhereDocumentOperator.Contains("doc"); // Create whereDocument condition
 
@@ -113,7 +260,7 @@ namespace ChatServer.Controllers
                     queryEmbeddings: [new(_ragService.QueryEmbedding)],
                     nResults: 10,
                     whereCondition
-                    // where: new ("key", "$in", "values")
+                // where: new ("key", "$in", "values")
                 );
 
                 log.WriteLine($"End query.");
@@ -176,147 +323,10 @@ namespace ChatServer.Controllers
             {
                 message = e.Message;
                 log.WriteLine($"Error: " + message);
-                return BadRequest(new { Result = "Error", Content = message });
+                return BadRequest(new { result = "Error", content = message });
             }
 
-            return Ok(new { Result = "Success", Content = message });
-        }
-
-        /// <summary>
-        /// Chat with a user.
-        /// </summary>
-        /// <param name="request"></param>
-        /// <returns></returns>
-        [HttpPost("generate")]
-        public async Task<IActionResult> GenerateAsync([FromBody] DataRequest request)
-        {
-            using Log log = new(GetType().Name, "GenerateAsync");
-            string message = string.Empty;
-
-            string prompt = request.Data;
-
-            var cancellationTokenSource = new CancellationTokenSource();
-            var token = cancellationTokenSource.Token;
-
-            string response = string.Empty;
-
-            if (request == null)
-            {
-                return BadRequest("Invalid request.");
-            }
-
-            if (_ragService.OllamaClient == null)
-            {
-                message = "Ollama is not available.";
-                log.WriteLine($"Error: " + message);
-                return BadRequest(new { Result = "Error", Content = message });
-            }
-
-            try
-            {
-                bool isOptimize = true;
-                if (isOptimize)
-                {
-                    OptimizePrompt(ref prompt);
-                }
-
-                log.WriteLine($"{prompt}");
-
-                await foreach (var answerToken in new Chat(_ragService.OllamaClient).SendAsync(prompt))
-                {
-                    if (token.IsCancellationRequested)
-                    {
-                        break;
-                    }
-
-                    message += answerToken;
-                }
-
-                log.WriteLine($"{message}");
-            }
-            catch (Exception e)
-            {
-                message = e.Message;
-                log.WriteLine($"Error: " + message);
-                return BadRequest(new { Result = "Error", Content = message });
-            }
-
-            return Ok(new { result = "Success", Content = message });
-        }
-
-        /// <summary>
-        /// Embed a prompt.
-        /// </summary>
-        /// <param name="request"></param>
-        /// <returns></returns>
-        [HttpPost("embed")]
-        public async Task<IActionResult> EmbedAsync([FromBody] DataRequest request)
-        {
-            using Log log = new(GetType().Name, "EmbedAsync");
-            string message = string.Empty;
-            string prompt = request.Data;
-
-            if (request == null)
-            {
-                return BadRequest("Invalid request.");
-            }
-
-            if (_ragService.OllamaClient == null)
-            {
-                message = "Ollama is not available.";
-                log.WriteLine($"Error: " + message);
-                return BadRequest(new { Result = "Error", Content = message });
-            }
-
-            try
-            {
-                var result = await _ragService.OllamaClient.EmbedAsync(prompt);
-                if (result.Embeddings != null)
-                {
-                    if (result.Embeddings.Count != 0)
-                    {
-                        _ragService.QueryEmbedding = result.Embeddings[0];
-                        message = _ragService.QueryEmbedding.ToString();
-                    }
-                }
-            }
-            catch (Exception e)
-            {
-                // If an error occurs when embedding the prompt.
-                message = e.Message;
-                log.WriteLine($"Error: " + message);
-                return BadRequest(new { Result = "Error", Content = message });
-            }
-
-            return Ok(new { Result = "Success", Content = message });
-        }
-
-        /// <summary>
-        /// Chat with a user.
-        /// </summary>
-        /// <param name="request"></param>
-        /// <returns></returns>
-        [HttpPost("select")]
-        public IActionResult SelectModelSync([FromBody] DataRequest request)
-        {
-            using Log log = new(GetType().Name, "SelectModelSync");
-            string message = string.Empty;
-            string model = request.Data;
-
-            if (request == null)
-            {
-                return BadRequest("Invalid request.");
-            }
-
-            if (_ragService.OllamaClient == null)
-            {
-                message = "Ollama is not available.";
-                log.WriteLine($"Error: " + message);
-                return BadRequest(new { Result = "Error", Content = message });
-            }
-
-            _ragService.OllamaClient.SelectedModel = model;
-            return Ok(new { result = "Success", content = model });
+            return Ok(new { result = "Success", content = message });
         }
 
         /// <summary>

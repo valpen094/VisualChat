@@ -1,7 +1,5 @@
 ﻿using ChromaDB.Client;
 using Microsoft.AspNetCore.Mvc;
-using System.Diagnostics;
-using System.Reflection;
 
 namespace ChatServer.Controllers
 {
@@ -13,6 +11,9 @@ namespace ChatServer.Controllers
     [Route("api/[controller]")]
     public class ChromaController(RAGService _ragService) : ControllerBase
     {
+
+#if DEBUG
+
         /// <summary>
         /// Query the ChromaDB.
         /// </summary>
@@ -23,17 +24,18 @@ namespace ChatServer.Controllers
         {
             using Log log = new(GetType().Name, "QueryAsync");
             string message = string.Empty;
-            
+
             if (request == null)
             {
-                return BadRequest("Invalid request.");
+                message = "Invalid request.";
+                return BadRequest(new { result = "Error", content = message });
             }
 
             if (_ragService.ChromaClient == null)
             {
                 message = "ChromaDB is not available.";
                 log.WriteLine($"Error: " + message);
-                return BadRequest(new { Result = "Error", Content = message });
+                return BadRequest(new { result = "Error", content = message });
             }
 
             try
@@ -51,7 +53,7 @@ namespace ChatServer.Controllers
                     queryEmbeddings: [new(_ragService.QueryEmbedding)],
                     nResults: 10,
                     whereCondition
-                    // where: new ("key", "$in", "values")
+                // where: new ("key", "$in", "values")
                 );
 
                 log.WriteLine($"End query.");
@@ -68,10 +70,13 @@ namespace ChatServer.Controllers
             {
                 message = ex.Message;
                 log.WriteLine($"Error: {message}");
-                return BadRequest(new { Result = "Error", Content = message });
+                return BadRequest(new { result = "Error", content = message });
             }
 
             return Ok(new { result = "Success", content = message });
         }
+
+#endif
+
     }
 }

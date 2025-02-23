@@ -1,10 +1,8 @@
 ﻿using ChromaDB.Client;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Logging;
 using OllamaSharp;
 using System.Diagnostics;
 using System.Net.Sockets;
-using System.Reflection;
 
 namespace ChatServer.Controllers
 {
@@ -57,7 +55,8 @@ namespace ChatServer.Controllers
 
             if (request == null)
             {
-                return BadRequest("Invalid request.");
+                message = "Invalid request.";
+                return BadRequest(new { result = "Error", content = message });
             }
 
             for (int i = 0; i < serviceList.Count; i++)
@@ -133,11 +132,11 @@ namespace ChatServer.Controllers
                 {
                     message = ex.Message;
                     log.WriteLine($"Error: {message}");
-                    return BadRequest(new { Result = "Error", Content = message });
+                    return BadRequest(new { result = "Error", content = message });
                 }
             }
 
-            return Ok(new { Result = "Success", Content = message });
+            return Ok(new { result = "Success", content = message });
         }
 
         /// <summary>
@@ -160,7 +159,8 @@ namespace ChatServer.Controllers
 
             if (request == null)
             {
-                return BadRequest("Invalid request.");
+                message = "Invalid request.";
+                return BadRequest(new { result = "Error", content = message });
             }
 
             try
@@ -182,10 +182,10 @@ namespace ChatServer.Controllers
             {
                 message = ex.Message;
                 log.WriteLine($"Error: {message}");
-                return BadRequest(new { Result = "Error", Content = message });
+                return BadRequest(new { result = "Error", content = message });
             }
 
-            return Ok(new { Result = "Success", Content = message });
+            return Ok(new { result = "Success", content = message });
         }
 
         /// <summary>
@@ -201,10 +201,11 @@ namespace ChatServer.Controllers
 
             if (request == null)
             {
-                return BadRequest("Invalid request.");
+                message = "Invalid request.";
+                return BadRequest(new { result = "Error", content = message });
             }
 
-            return Ok(new { Result = "Success", Content = message });
+            return Ok(new { result = "Success", content = message });
         }
 
         /// <summary>

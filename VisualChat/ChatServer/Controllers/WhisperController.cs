@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using System.Diagnostics;
 using System.Reflection;
+
 using System.Text;
 using System.Text.Json;
 
@@ -14,6 +15,9 @@ namespace ChatServer.Controllers
     [Route("api/[controller]")]
     public class WhisperController(RAGService _ragService) : ControllerBase
     {
+
+#if DEBUG
+
         /// <summary>
         /// Record the voice and send the result to the user.
         /// </summary>
@@ -30,14 +34,15 @@ namespace ChatServer.Controllers
 
             if (request == null)
             {
-                return BadRequest("Invalid request.");
+                message = "Invalid request.";
+                return BadRequest(new { result = "Error", content = message });
             }
 
             if (_ragService.WhisperClient == null)
             {
                 message = "Whisper client is not available.";
                 log.WriteLine($"Error: " + message);
-                return BadRequest(new { Result = "Error", Content = message });
+                return BadRequest(new { result = "Error", content = message });
             }
 
             try
@@ -63,10 +68,10 @@ namespace ChatServer.Controllers
             {
                 message = ex.Message;
                 log.WriteLine($"Error: " + message);
-                return BadRequest(new { Result = "Error", Content = message });
+                return BadRequest(new { result = "Error", content = message });
             }
 
-            return Ok(new { Result = "Success", Content = message });
+            return Ok(new { result = "Success", content = message });
         }
 
         /// <summary>
@@ -85,14 +90,15 @@ namespace ChatServer.Controllers
 
             if (request == null)
             {
-                return BadRequest("Invalid request.");
+                message = "Invalid request.";
+                return BadRequest(new { result = "Error", content = message });
             }
 
             if (_ragService.WhisperClient == null)
             {
                 message = "Whisper client is not available.";
                 log.WriteLine($"Error: " + message);
-                return BadRequest(new { Result = "Error", Content = message });
+                return BadRequest(new { result = "Error", content = message });
             }
 
             try
@@ -129,17 +135,17 @@ namespace ChatServer.Controllers
                 {
                     message = statusCode;
                     log.WriteLine($"Error: {statusCodeValue}, {message}");
-                    return BadRequest(new { Result = "Error", Content = message });
+                    return BadRequest(new { result = "Error", content = message });
                 }
             }
             catch (Exception ex)
             {
                 message = ex.Message;
                 log.WriteLine($"Error: " + message);
-                return BadRequest(new { Result = "Error", Content = message });
+                return BadRequest(new { result = "Error", content = message });
             }
 
-            return Ok(new { Result = "Success", Content = message });
+            return Ok(new { result = "Success", content = message });
         }
 
         /// <summary>
@@ -158,14 +164,15 @@ namespace ChatServer.Controllers
 
             if (request == null)
             {
-                return BadRequest("Invalid request.");
+                message = "Invalid request.";
+                return BadRequest(new { result = "Error", content = message });
             }
 
             if (_ragService.WhisperClient == null)
             {
                 message = "Whisper client is not available.";
                 log.WriteLine($"Error: " + message);
-                return BadRequest(new { Result = "Error", Content = message });
+                return BadRequest(new { result = "Error", content = message });
             }
 
             try
@@ -202,17 +209,17 @@ namespace ChatServer.Controllers
                 {
                     message = statusCode;
                     log.WriteLine($"Error: {statusCodeValue}, {message}");
-                    return BadRequest(new { Result = "Error", Content = message });
+                    return BadRequest(new { result = "Error", content = message });
                 }
             }
             catch (Exception ex)
             {
                 message = ex.Message;
                 log.WriteLine($"Error: " + message);
-                return BadRequest(new { Result = "Error", Content = message });
+                return BadRequest(new { result = "Error", content = message });
             }
 
-            return Ok(new { Result = "Success", Content = message });
+            return Ok(new { result = "Success", content = message });
         }
 
         public class TranscriptionResult
@@ -226,5 +233,8 @@ namespace ChatServer.Controllers
             public float end { get; set; }
             public string? text { get; set; }
         }
+
+#endif
+
     }
 }
