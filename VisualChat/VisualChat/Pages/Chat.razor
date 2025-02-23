@@ -1,6 +1,7 @@
 ﻿@page "/chat"
 @using System.Net.WebSockets
 @using System.Text
+@using System.Text.Json
 
 <style>
     .chat-container {
@@ -91,9 +92,11 @@
 
     private string MessageText = string.Empty;
     private List<WebSocketData> Messages = new();
-    private ClientWebSocket? WebSocket;
+    private ClientWebSocket? _webSocketClient;
 
     private bool IsReconnecting = false;
+
+    private string _token = string.Empty;
 
     protected override async Task OnInitializedAsync()
     {
@@ -102,15 +105,36 @@
 
     private async Task ConnectWebSocket()
     {
-        WebSocket = new ClientWebSocket();
-        Uri serverUri = new Uri("ws://localhost:5293/ws");
+        _webSocketClient = new ClientWebSocket();
 
-        while (WebSocket.State != WebSocketState.Open)
+        while (_webSocketClient.State != WebSocketState.Open)
         {
             try
             {
-                await WebSocket.ConnectAsync(ServerUri, CancellationToken.None);
+				// Connect to the WebSocket server
+                Uri wsUri = new Uri($"{ServerUri}");
+                await _webSocketClient.ConnectAsync(wsUri, CancellationToken.None);
                 Messages.Add(new WebSocketData { Data = "✅ Connected to WebSocket Server!", IsSent = true });
+
+				// Login to the server
+                var loginRequest = new { UserId = "validUser", Password = "validPassword" };
+                string json = JsonSerializer.Serialize(loginRequest);
+                byte[] buffer = Encoding.UTF8.GetBytes(json);
+                await _webSocketClient.SendAsync(new ArraySegment<byte>(buffer), WebSocketMessageType.Text, true, CancellationToken.None);
+
+                // Receive a JWT token
+                buffer = new byte[1024];
+                WebSocketReceiveResult result = await _webSocketClient.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
+                string token = Encoding.UTF8.GetString(buffer, 0, result.Count);
+
+                if (string.IsNullOrEmpty(token))
+                {
+                    Messages.Add(new WebSocketData { Data = "❌ Authentication failed.", IsSent = false });
+                    return;
+                }
+
+                _token = token;  // Save JWT token
+                Messages.Add(new WebSocketData { Data = "✅ Authentication successful.", IsSent = false });
 
                 // Start receiving messages
                 _ = ReceiveMessage();
@@ -133,10 +157,16 @@
 
     private async Task SendMessage()
     {
-        if (WebSocket?.State == WebSocketState.Open && !string.IsNullOrWhiteSpace(MessageText))
+        if (_webSocketClient?.State == WebSocketState.Open && !string.IsNullOrWhiteSpace(MessageText))
         {
+            if (string.IsNullOrEmpty(_token))
+            {
+                Messages.Add(new WebSocketData { Data = "❌ No token.", IsSent = true });
+                return;
+            }
+
             var bytes = Encoding.UTF8.GetBytes(MessageText);
-            await WebSocket.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Text, true, CancellationToken.None);
+            await _webSocketClient.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Text, true, CancellationToken.None);
 
             Messages.Add(new WebSocketData { Data = MessageText, IsSent = true });
             MessageText = "";
@@ -153,14 +183,14 @@
 
         try
         {
-            while (WebSocket?.State == WebSocketState.Open)
+            while (_webSocketClient?.State == WebSocketState.Open)
             {
-                var result = await WebSocket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
+                var result = await _webSocketClient.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
 
                 if (result.MessageType == WebSocketMessageType.Close)
                 {
                     Messages.Add(new WebSocketData { Data = "⚠️ Server closed connection.", IsSent = true });
-                    await WebSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Closing", CancellationToken.None);
+                    await _webSocketClient.CloseAsync(WebSocketCloseStatus.NormalClosure, "Closing", CancellationToken.None);
                     await ConnectWebSocket();
                     return;
                 }
