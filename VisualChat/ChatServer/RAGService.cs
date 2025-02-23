@@ -26,15 +26,15 @@ namespace ChatServer
         public ChromaCollectionClient? ChromaCollectionClient { get; set; }
         public HttpClient? WhisperClient { get; set; }
 
-        /// <summary>
-        /// Numeric Vector Data
-        /// </summary>
-        public float[]? QueryEmbedding { get; set; } = [0, 0f, 1.1f, 2.2f, 3.3f, 4.4f, 5.5f, 6.6f, 7.7f, 8.8f, 9.9f];
-
-        public async Task<string> Query()
+        public async Task<string> Query(float[] embedData)
         {
             using Log log = new(GetType().Name, "Process: Query");
             string resultData = string.Empty;
+            float[] queryEmbeddings = embedData;
+            if (queryEmbeddings.Length == 0)
+            {
+                queryEmbeddings = [0, 0f, 1.1f, 2.2f, 3.3f, 4.4f, 5.5f, 6.6f, 7.7f, 8.8f, 9.9f];
+            }
 
             // Create where condition
             ChromaWhereOperator whereCondition = null;
@@ -44,7 +44,7 @@ namespace ChatServer
 
             // Query the database
             var queryData = await ChromaCollectionClient.Query(
-                queryEmbeddings: [new(QueryEmbedding)],
+                queryEmbeddings: [new(queryEmbeddings)],
                 nResults: 10,
                 whereCondition
                 // where: new ("key", "$in", "values")
@@ -141,6 +141,45 @@ namespace ChatServer
             }
 
             resultData = new Tuple<string, string, int>($"{statusCodeValue}, {responseData}", statusCode, statusCodeValue);
+            return resultData;
+        }
+
+        public async Task<List<float[]>> Embed(string prompt)
+        {
+            using Log log = new(GetType().Name, "Process: Embed");
+            List<float[]> resultData = [];
+
+            var result = await OllamaClient.EmbedAsync(prompt);
+            if (result.Embeddings != null)
+            {
+                if (result.Embeddings.Count != 0)
+                {
+                    resultData = result.Embeddings;
+                }
+            }
+
+            return resultData;
+        }
+
+        public async Task<string> GenerateText(string prompt)
+        {
+            using Log log = new(GetType().Name, "Process: GenerateText");
+            string resultData = string.Empty;
+
+            var cancellationTokenSource = new CancellationTokenSource();
+            var token = cancellationTokenSource.Token;
+
+            await foreach (var answerToken in new Chat(OllamaClient).SendAsync(prompt))
+            {
+                if (token.IsCancellationRequested)
+                {
+                    break;
+                }
+
+                resultData += answerToken;
+            }
+
+            log.WriteLine($"{resultData}");
             return resultData;
         }
     }

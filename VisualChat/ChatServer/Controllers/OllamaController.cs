@@ -1,7 +1,13 @@
-﻿using System.Text.RegularExpressions;
+﻿using System.Text.Json;
+using System.Text;
+using System.Text.RegularExpressions;
 using ChromaDB.Client;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using OllamaSharp;
+using static ChatServer.Controllers.WhisperController;
+using OllamaSharp.Models.Chat;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace ChatServer.Controllers
 {
@@ -26,7 +32,6 @@ namespace ChatServer.Controllers
         {
             using Log log = new(GetType().Name, "PullAsync");
             string message = string.Empty;
-            string model = request.Data;
 
             if (request == null)
             {
@@ -40,6 +45,8 @@ namespace ChatServer.Controllers
                 log.WriteLine($"Error: " + message);
                 return BadRequest(new { result = "Error", content = message });
             }
+
+            string model = request.Data;
 
             try
             {
@@ -65,17 +72,10 @@ namespace ChatServer.Controllers
         /// <param name="request"></param>
         /// <returns></returns>
         [HttpPost("generate")]
-        public async Task<IActionResult> GenerateAsync([FromBody] DataRequest request)
+        public IActionResult Generate([FromBody] DataRequest request)
         {
-            using Log log = new(GetType().Name, "GenerateAsync");
+            using Log log = new(GetType().Name, "Generate");
             string message = string.Empty;
-
-            string prompt = request.Data;
-
-            var cancellationTokenSource = new CancellationTokenSource();
-            var token = cancellationTokenSource.Token;
-
-            string response = string.Empty;
 
             if (request == null)
             {
@@ -90,6 +90,8 @@ namespace ChatServer.Controllers
                 return BadRequest(new { result = "Error", content = message });
             }
 
+            string prompt = request.Data;
+
             try
             {
                 bool isOptimize = true;
@@ -100,17 +102,7 @@ namespace ChatServer.Controllers
 
                 log.WriteLine($"{prompt}");
 
-                await foreach (var answerToken in new Chat(_ragService.OllamaClient).SendAsync(prompt))
-                {
-                    if (token.IsCancellationRequested)
-                    {
-                        break;
-                    }
-
-                    message += answerToken;
-                }
-
-                log.WriteLine($"{message}");
+                message = _ragService.GenerateText(prompt).Result;
             }
             catch (Exception e)
             {
@@ -128,11 +120,11 @@ namespace ChatServer.Controllers
         /// <param name="request"></param>
         /// <returns></returns>
         [HttpPost("embed")]
-        public async Task<IActionResult> EmbedAsync([FromBody] DataRequest request)
+        public IActionResult Embed([FromBody] DataRequest request)
         {
-            using Log log = new(GetType().Name, "EmbedAsync");
+            using Log log = new(GetType().Name, "Embed");
             string message = string.Empty;
-            string prompt = request.Data;
+            List<float[]> responseData = [];
 
             if (request == null)
             {
@@ -147,16 +139,14 @@ namespace ChatServer.Controllers
                 return BadRequest(new { result = "Error", content = message });
             }
 
+            string prompt = request.Data;
+
             try
             {
-                var result = await _ragService.OllamaClient.EmbedAsync(prompt);
-                if (result.Embeddings != null)
+                responseData = _ragService.Embed(prompt).Result;
+                foreach (var item in responseData)
                 {
-                    if (result.Embeddings.Count != 0)
-                    {
-                        _ragService.QueryEmbedding = result.Embeddings[0];
-                        message = _ragService.QueryEmbedding.ToString();
-                    }
+                    message += $"{item}\r\n";
                 }
             }
             catch (Exception e)
@@ -180,7 +170,6 @@ namespace ChatServer.Controllers
         {
             using Log log = new(GetType().Name, "SelectModelSync");
             string message = string.Empty;
-            string model = request.Data;
 
             if (request == null)
             {
@@ -194,6 +183,8 @@ namespace ChatServer.Controllers
                 log.WriteLine($"Error: " + message);
                 return BadRequest(new { result = "Error", content = message });
             }
+
+            string model = request.Data;
 
             _ragService.OllamaClient.SelectedModel = model;
             return Ok(new { result = "Success", content = model });
@@ -212,13 +203,6 @@ namespace ChatServer.Controllers
             using Log log = new(GetType().Name, "ChatAsync");
             string message = string.Empty;
 
-            List<float[]>? embeddings = null;
-
-            string prompt = request.Data;
-
-            var cancellationTokenSource = new CancellationTokenSource();
-            var token = cancellationTokenSource.Token;
-
             if (request == null)
             {
                 message = "Invalid request.";
@@ -232,92 +216,78 @@ namespace ChatServer.Controllers
                 return BadRequest(new { result = "Error", content = message });
             }
 
+            string prompt = string.Empty;
+
             try
             {
-                // Embed a prompt.
-                log.WriteLine($"Start embeding.");
-
-                var result = await _ragService.OllamaClient.EmbedAsync(prompt);
-                embeddings = result.Embeddings;
-
-                if (result.Embeddings != null)
+                // Record the voice.
+                var recordData = await _ragService.Record();
+                if (recordData.Item3 != 200)
                 {
-                    if (result.Embeddings.Count != 0)
-                    {
-                        _ragService.QueryEmbedding = result.Embeddings[0];
-                    }
+                    message = recordData.Item1;
+                    log.WriteLine($"Error: " + message);
+                    return BadRequest(new { result = "Error", content = message });
                 }
 
-                log.WriteLine($"End embeding.");
+                // Transcribe the voice.
+                var transcribeData = _ragService.Transcribe().Result;
+                if (transcribeData.Item3 != 200)
+                {
+                    message = transcribeData.Item1;
+                    log.WriteLine($"Error: " + message);
+                    return BadRequest(new { result = "Error", content = message });
+                }
+
+                prompt = transcribeData.Item1;
+
+                // Embed a prompt.
+                var embedData = _ragService.Embed(prompt).Result[0];
 
                 // Query the database
-                log.WriteLine($"Start query.");
-
-                ChromaWhereOperator whereCondition = null; // Create where condition
-                ChromaWhereDocumentOperator whereDocumentCondition = ChromaWhereDocumentOperator.Contains("doc"); // Create whereDocument condition
-
-                var queryData = await _ragService.ChromaCollectionClient.Query(
-                    queryEmbeddings: [new(_ragService.QueryEmbedding)],
-                    nResults: 10,
-                    whereCondition
-                // where: new ("key", "$in", "values")
-                );
-
-                log.WriteLine($"End query.");
-
-                foreach (var item in queryData)
-                {
-                    foreach (var entry in item)
-                    {
-                        message += $"{entry.Document}\r\n";
-                    }
-                }
+                var queryData = _ragService.Query(embedData).Result;
 
                 // Optimize the prompt.
-                log.WriteLine($"Start optimize.");
-
                 bool isOptimize = true;
                 if (isOptimize)
                 {
                     OptimizePrompt(ref prompt);
                 }
 
-                log.WriteLine($"End optimize.");
+                log.WriteLine($"{prompt}");
 
-                // Generate a response to a prompt.
-                log.WriteLine($"Start generate a text.");
-
-                await foreach (var answerToken in new Chat(_ragService.OllamaClient).SendAsync(prompt))
+                // Generate up to 5 times.
+                for (int i = 0; i < 5; i++)
                 {
-                    if (token.IsCancellationRequested)
+                    log.WriteLine($"Number of tries: {i + 1}");
+                    
+                    try
                     {
-                        break;
+                        // Generate a response to a prompt.
+                        message = _ragService.GenerateText(prompt).Result;
+
+                        // Get the JSON string from the message.
+                        var jsonMatch = Regex.Match(message, @"\{.*?\}", RegexOptions.Singleline);
+                        if (jsonMatch.Success)
+                        {
+                            string json = jsonMatch.Value;
+                            log.WriteLine(json);
+
+                            // Deserialize
+                            var jsonObject = JsonSerializer.Deserialize<IntelligenceData>(json);
+                            log.WriteLine("Deserialization successful.");
+                        }
+                        else
+                        {
+                            log.WriteLine("No JSON found in the input string.");
+                        }
+
+                        break; // Exit if deserialization is successful.
                     }
-
-                    message += answerToken;
+                    catch (JsonException)
+                    {
+                        continue;
+                    }
                 }
-
-                log.WriteLine($"End generate a text.");
-
-                // Get the JSON string from the message.
-                log.WriteLine($"Start deserialization.");
-
-                var jsonMatch = Regex.Match(message, @"\{.*?\}", RegexOptions.Singleline);
-                if (jsonMatch.Success)
-                {
-                    string json = jsonMatch.Value;
-                    log.WriteLine(json);
-
-                    // Deserialize
-                    var jsonObject = System.Text.Json.JsonSerializer.Deserialize<IntelligenceData>(json);
-                    log.WriteLine("Deserialization successful.");
-                }
-                else
-                {
-                    log.WriteLine("No JSON found in the input string.");
-                }
-
-                log.WriteLine($"End deserialization.");
             }
             catch (Exception e)
             {
@@ -335,6 +305,8 @@ namespace ChatServer.Controllers
         /// <param name="prompt"></param>
         private void OptimizePrompt(ref string prompt)
         {
+            using Log log = new(GetType().Name, "OptimizePrompt");
+
             string optimizedPrompt =
                 "\r\nCondition: \r\n" +
                 "1. From now on, you will become a machine that answers product names. No opinions or subjectivity are necessary.\r\n" +
@@ -355,6 +327,6 @@ namespace ChatServer.Controllers
     public class IntelligenceData
     {
         public string accuracy { get; set; } = string.Empty;
-        public string text { get; set; } = string.Empty;
+        public List<string> text { get; set; }
     }
 }
