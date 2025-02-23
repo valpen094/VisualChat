@@ -10,10 +10,10 @@ namespace ChatServer.Controllers
     /// <summary>
     /// General controller.
     /// </summary>
-    /// <param name="ragService"></param>
+    /// <param name="_ragService"></param>
     [ApiController]
     [Route("api/[controller]")]
-    public class GeneralController(RAGService ragService) : CustomController(ragService)
+    public class GeneralController(RAGService _ragService) : ControllerBase
     {
         /// <summary>
         /// Open the server.

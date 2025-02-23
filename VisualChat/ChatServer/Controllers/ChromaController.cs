@@ -8,10 +8,10 @@ namespace ChatServer.Controllers
     /// <summary>
     /// Chroma controller.
     /// </summary>
-    /// <param name="ragService"></param>
+    /// <param name="_ragService"></param>
     [ApiController]
     [Route("api/[controller]")]
-    public class ChromaController(RAGService ragService) : CustomController(ragService)
+    public class ChromaController(RAGService _ragService) : ControllerBase
     {
         /// <summary>
         /// Query the ChromaDB.

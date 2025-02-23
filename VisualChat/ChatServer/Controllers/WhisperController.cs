@@ -9,10 +9,10 @@ namespace ChatServer.Controllers
     /// <summary>
     /// Whisper controller.
     /// </summary>
-    /// <param name="ragService"></param>
+    /// <param name="_ragService"></param>
     [ApiController]
     [Route("api/[controller]")]
-    public class WhisperController(RAGService ragService) : CustomController(ragService)
+    public class WhisperController(RAGService _ragService) : ControllerBase
     {
         /// <summary>
         /// Record the voice and send the result to the user.

@@ -34,4 +34,10 @@ namespace ChatServer
     {
         public string Data { get; set; } = string.Empty;
     }
+
+    public class DataResponse
+    {
+        public string Result { get; set; } = string.Empty;
+        public string Content { get; set; } = string.Empty;
+    }
 }

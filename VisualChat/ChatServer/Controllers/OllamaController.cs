@@ -1,13 +1,17 @@
-﻿using System.Diagnostics;
-using System.Reflection;
+﻿using System.Text.RegularExpressions;
+using ChromaDB.Client;
 using Microsoft.AspNetCore.Mvc;
 using OllamaSharp;
 
 namespace ChatServer.Controllers
 {
+    /// <summary>
+    /// Ollama controller.
+    /// </summary>
+    /// <param name="_ragService"></param>
     [ApiController]
     [Route("api/[controller]")]
-    public class OllamaController(RAGService ragService) : CustomController(ragService)
+    public class OllamaController(RAGService _ragService) : ControllerBase
     {
         /// <summary>
         /// Load a model.
@@ -84,20 +88,58 @@ namespace ChatServer.Controllers
             try
             {
                 // Embed a prompt.
+                log.WriteLine($"Start embeding.");
+
                 var result = await _ragService.OllamaClient.EmbedAsync(prompt);
                 embeddings = result.Embeddings;
 
-                // ChromaDBへクエリを投げる
-                // 
+                if (result.Embeddings != null)
+                {
+                    if (result.Embeddings.Count != 0)
+                    {
+                        _ragService.QueryEmbedding = result.Embeddings[0];
+                    }
+                }
+
+                log.WriteLine($"End embeding.");
+
+                // Query the database
+                log.WriteLine($"Start query.");
+                
+                ChromaWhereOperator whereCondition = null; // Create where condition
+                ChromaWhereDocumentOperator whereDocumentCondition = ChromaWhereDocumentOperator.Contains("doc"); // Create whereDocument condition
+
+                var queryData = await _ragService.ChromaCollectionClient.Query(
+                    queryEmbeddings: [new(_ragService.QueryEmbedding)],
+                    nResults: 10,
+                    whereCondition
+                    // where: new ("key", "$in", "values")
+                );
+
+                log.WriteLine($"End query.");
+
+                foreach (var item in queryData)
+                {
+                    foreach (var entry in item)
+                    {
+                        message += $"{entry.Document}\r\n";
+                    }
+                }
 
                 // Optimize the prompt.
+                log.WriteLine($"Start optimize.");
+
                 bool isOptimize = true;
                 if (isOptimize)
                 {
                     OptimizePrompt(ref prompt);
                 }
 
+                log.WriteLine($"End optimize.");
+
                 // Generate a response to a prompt.
+                log.WriteLine($"Start generate a text.");
+
                 await foreach (var answerToken in new Chat(_ragService.OllamaClient).SendAsync(prompt))
                 {
                     if (token.IsCancellationRequested)
@@ -107,6 +149,28 @@ namespace ChatServer.Controllers
 
                     message += answerToken;
                 }
+
+                log.WriteLine($"End generate a text.");
+
+                // Get the JSON string from the message.
+                log.WriteLine($"Start deserialization.");
+
+                var jsonMatch = Regex.Match(message, @"\{.*?\}", RegexOptions.Singleline);
+                if (jsonMatch.Success)
+                {
+                    string json = jsonMatch.Value;
+                    log.WriteLine(json);
+
+                    // Deserialize
+                    var jsonObject = System.Text.Json.JsonSerializer.Deserialize<IntelligenceData>(json);
+                    log.WriteLine("Deserialization successful.");
+                }
+                else
+                {
+                    log.WriteLine("No JSON found in the input string.");
+                }
+
+                log.WriteLine($"End deserialization.");
             }
             catch (Exception e)
             {
@@ -276,5 +340,11 @@ namespace ChatServer.Controllers
             // Optimaize the prompt.
             prompt = optimizedPrompt;
         }
+    }
+
+    public class IntelligenceData
+    {
+        public string accuracy { get; set; } = string.Empty;
+        public string text { get; set; } = string.Empty;
     }
 }
