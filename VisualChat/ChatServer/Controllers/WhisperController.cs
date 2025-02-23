@@ -123,17 +123,8 @@ namespace ChatServer.Controllers
 
             try
             {
-                // Record the voice.
-                responseData = _ragService.Record().Result;
-                if (responseData.Item3 != 200)
-                {
-                    message = responseData.Item1;
-                    log.WriteLine($"Error: " + message);
-                    return BadRequest(new { result = "Error", content = message });
-                }
-
-                // Transcribe the voice.
-                responseData = _ragService.Transcribe().Result;
+                // Record the voice, and transcribe it.
+                responseData = _ragService.Whisper().Result;
                 if (responseData.Item3 != 200)
                 {
                     message = responseData.Item1;

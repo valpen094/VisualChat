@@ -96,6 +96,41 @@ namespace ChatServer
             return resultData;
         }
 
+        public async Task<Tuple<string, string, int>> Whisper()
+        {
+            using Log log = new(GetType().Name, "Process: Whisper");
+            Tuple<string, string, int> resultData = new(string.Empty, string.Empty, 0);
+
+            string responseData = string.Empty;
+            string statusCode = string.Empty;
+            int statusCodeValue = 0;
+
+            const string url = "faster-whisper/api/whisper";
+
+            string filePath = $"{Directory.GetCurrentDirectory()}\\voice.wav";
+            var jsonData = new { filePath };
+            string jsonString = JsonSerializer.Serialize(jsonData);
+            var content = new StringContent(jsonString, Encoding.UTF8, "application/json");
+
+            // Send a message to the server.
+            HttpResponseMessage response = await WhisperClient.PostAsync(url, content);
+
+            statusCode = response.StatusCode.ToString();
+            statusCodeValue = (int)response.StatusCode;
+
+            // Receive the response from the server.
+            responseData = await response.Content.ReadAsStringAsync();
+            log.WriteLine($"POST Response: {responseData}");
+
+            if (!response.IsSuccessStatusCode)
+            {
+                responseData = statusCode;
+            }
+
+            resultData = new Tuple<string, string, int>($"{statusCodeValue}, {responseData}", statusCode, statusCodeValue);
+            return resultData;
+        }
+
         public async Task<Tuple<string, string, int>> Transcribe()
         {
             using Log log = new(GetType().Name, "Process: Transcribe");
@@ -120,7 +155,7 @@ namespace ChatServer
 
             // Receive the response from the server.
             responseData = await response.Content.ReadAsStringAsync();
-            log.WriteLine($"POST Response: {resultData}");
+            log.WriteLine($"POST Response: {responseData}");
 
             if (response.IsSuccessStatusCode)
             {

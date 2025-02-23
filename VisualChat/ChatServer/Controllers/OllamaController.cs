@@ -1,13 +1,7 @@
 ﻿using System.Text.Json;
-using System.Text;
 using System.Text.RegularExpressions;
-using ChromaDB.Client;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using OllamaSharp;
-using static ChatServer.Controllers.WhisperController;
-using OllamaSharp.Models.Chat;
-using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace ChatServer.Controllers
 {
