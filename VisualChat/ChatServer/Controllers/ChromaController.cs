@@ -40,31 +40,8 @@ namespace ChatServer.Controllers
 
             try
             {
-                log.WriteLine($"Start query.");
-
-                // Create where condition
-                ChromaWhereOperator whereCondition = null;
-
-                // Create whereDocument condition
-                ChromaWhereDocumentOperator whereDocumentCondition = ChromaWhereDocumentOperator.Contains("example");
-
-                // Query the database
-                var queryData = await _ragService.ChromaCollectionClient.Query(
-                    queryEmbeddings: [new(_ragService.QueryEmbedding)],
-                    nResults: 10,
-                    whereCondition
-                // where: new ("key", "$in", "values")
-                );
-
-                log.WriteLine($"End query.");
-
-                foreach (var item in queryData)
-                {
-                    foreach (var entry in item)
-                    {
-                        message += $"{entry.Document}\r\n";
-                    }
-                }
+                // Query the ChromaDB.
+                message = await _ragService.Query();
             }
             catch (Exception ex)
             {
