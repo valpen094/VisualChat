@@ -1,10 +1,7 @@
 ﻿using OllamaSharp;
 using ChromaDB.Client;
-using OllamaSharp.Models.Chat;
-using Microsoft.AspNetCore.Http;
 using System.Text.Json;
 using System.Text;
-using static ChatServer.Controllers.WhisperController;
 
 namespace ChatServer
 {
