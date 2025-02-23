@@ -1,15 +1,28 @@
-import socket
 import datetime
 import sounddevice as sd
 import numpy as np
 import scipy.io.wavfile as wav
 import time
 import uvicorn
-import os
 from faster_whisper import WhisperModel
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
+import torch
+
+MODEL_SIZE = "small" # small, medium, large
+
+print(f"CUDA version: {torch.version.cuda}")  # Display the CUDA version
+print(f"cuDNN version: {torch.backends.cudnn.version()}")  # Display the cuDNN version
+
+if torch.cuda.is_available():
+    torch.backends.cudnn.benchmark = True  # Enable cuDNN benchmark mode (Optimization)
+    torch.set_float32_matmul_precision('high')	# Set the precision of matrix multiplication to float32
+    print(f"GPU: {torch.cuda.get_device_name(0)}")  # Display the GPU name
+    model = WhisperModel(MODEL_SIZE, device = "cuda", compute_type = "float16")
+else:
+    print("GPU is not available.")
+    model = WhisperModel(MODEL_SIZE, device = "cpu", compute_type=  "float32")
 
 app = FastAPI()
 
@@ -69,13 +82,6 @@ async def recordAsync(data: FilePathModel):
 @app.post('/faster-whisper/api/transcribe')
 async def transcribeAsync(data: FilePathModel):
     file_path = data.filePath
-
-    MODEL_SIZE = "small" # small, medium, large
-
-    # os.environ["XDG_CACHE_HOME"] = "."
-
-    # model = WhisperModel(MODEL_SIZE, device = "cuda", compute_type = "float16")
-    model = WhisperModel(MODEL_SIZE, device = "cpu", compute_type=  "float32")
 
     # Transcription of audio files
     print(f"{datetime.datetime.now()} Start transcription.")
@@ -152,13 +158,6 @@ async def whisperAsync(data: FilePathModel):
     Transcription
     '''
     
-    MODEL_SIZE = "small" # small, medium, large
-
-    # os.environ["XDG_CACHE_HOME"] = "."
-
-    # model = WhisperModel(MODEL_SIZE, device="cuda", compute_type="float16")
-    model = WhisperModel(MODEL_SIZE, device="cpu", compute_type="float32")
-
     # Transcription of audio file
     print(f"{datetime.datetime.now()} Start transcription.")
     segments, info = model.transcribe(file_path, beam_size=5)
@@ -179,5 +178,5 @@ async def whisperAsync(data: FilePathModel):
     return JSONResponse(content = {"segments": segment_data})
 
 if __name__ == "__main__":
-    print("Swagger UI: http://localhost:5023/docs")
+    print("\033[32mFastAPI - Swagger UI\033[0m: http://localhost:5023/docs")
     uvicorn.run(app, host = "localhost", port = 5023)
